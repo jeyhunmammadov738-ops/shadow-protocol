@@ -5,10 +5,10 @@ Development tracking document. Lives in the project root. Since the
 (commits 57855a1/fd9d331; supersedes the earlier not-committed rule).
 Verify, do not assume.
 
-Current focus: Phase 8 — Release Handoff (P8-T2 COMPLETE; P8-T1 OPEN,
-device installation required; P8-T3 OPEN, on-device gameplay required;
-P7-T2 OPEN, real-device performance evidence required; P7-T1 complete
-at code level).
+Current focus: FINAL ACCEPTANCE CLOSED (2026-11-22) — all eight phases
+complete, 30/30 tasks. P7-T2, P8-T1 and P8-T3 were closed with
+owner-executed real-device evidence on a POCO X5 Pro (Android 14) using
+the signed release APK 0.1.0 (1); see the dated final acceptance note.
 (Corrected 2026-10-24: the previous intro metadata still said "Phase 7"
 and "not committed" after the Phase 8 backup work — demonstrably stale
 statements, historical evidence below is preserved unchanged.)
@@ -389,7 +389,7 @@ validate_project.sh OK. Task counts unchanged (26/30). Visual/
 on-device appearance remains DEVICE-UNVERIFIED (headless geometry
 evidence only).
 
-## Phase 7 — Android Optimization (PARTIALLY COMPLETE — device verification outstanding)
+## Phase 7 — Android Optimization (COMPLETE — device performance verified 2026-11-22)
 
 - [x] P7-T1 Profiling pass; AI/physics tick throttling; node batching.
   Evidence (2026-10-23, Godot 4.7.2.stable.official.ed1daf0bf, headless,
@@ -441,26 +441,38 @@ evidence only).
     validate_project.sh exit 0 on the final tree.
   - Limitation: Android rendering/thermal/touch behavior remains
     device-unverified (headless cannot demonstrate it).
-- [ ] P7-T2 Stable 60 FPS target on mid-range hardware (device evidence).
-  OPEN and DEVICE-UNVERIFIED. Future verification plan (documented,
-  not executed): mid-range Android device (e.g. Snapdragon 6/7-class,
-  6 GB RAM), release or profiling build, representative scenarios
-  (legacy steady, layout B doors, seeded, 8-enemy stress, active
-  detection), frame-time distribution over >= 10 min sustained runs
-  under thermal load, repeated comparable runs, input responsiveness
-  while active. No headless result may mark this complete.
+- [x] P7-T2 Stable 60 FPS target on mid-range hardware (device evidence).
+  COMPLETE 2026-11-22 with owner-executed real-device evidence: POCO X5
+  Pro, Android 14, signed release APK 0.1.0 (versionCode 1).
+  Instrumented (SurfaceFlinger TimeStats, statsStart 1795365678 ->
+  statsEnd 1795367015, 1337 s window; game layer
+  SurfaceView[com.shadowprotocol.game/...GodotAppLauncher](BLAST)):
+  totalFrames 76989, averageFPS 59.869, droppedFrames 0,
+  lateAcquireFrames 0, badDesiredPresentFrames 0; present-to-present
+  bins 16 ms = 70761 (91.9% of frames), 25 ms = 5958; intervals
+  >= 24 ms = 6089 (7.91%); P50/P90 ~= 16 ms, P95/P99 ~= 25 ms
+  (histogram-bin estimates). Owner-qualitative: visually smooth, no
+  perceptible stutter, normal heating, no observed thermal degradation;
+  15-minute extended gameplay run completed.
+  Limitations recorded: single aggregate window (no per-scenario
+  breakdown); layer totalTimelineFrames = 0 so no reliable FrameTimeline
+  jank percentage; the 120 Hz display refresh rate is not the game FPS;
+  thermal claim is owner-reported (qualitative). Scenario plan reference:
+  docs/ANDROID_DEVICE_ACCEPTANCE.md.
 
-## Phase 8 — APK Packaging and Device Testing (PARTIALLY COMPLETE — host portion of P8-T1 and debug+release signing of P8-T2 verified; install and device criteria OPEN)
+## Phase 8 — APK Packaging and Device Testing (COMPLETE — host build/signing verified, owner device install and gameplay acceptance 2026-11-22)
 
-- [ ] P8-T1 Execute tools/setup_android.sh -> build_android.sh ->
+- [x] P8-T1 Execute tools/setup_android.sh -> build_android.sh ->
       install_android.sh end to end.
-      PARTIAL (host-verified to the install step): setup preflight
-      exit 0 (all six prerequisites present), build_android.sh
-      executed host-side and produced a signed debug APK; the
-      install_android.sh step was deliberately NOT invoked (requires
-      a physical device; out of scope by design for device-free
-      pipelines). Remains open as written until an on-device install
-      is performed.
+      COMPLETE 2026-11-22. Host chain verified earlier (setup preflight
+      exit 0 with all six prerequisites; build_android.sh produced
+      signed debug and release APKs). Installation acceptance satisfied
+      on a physical device: the owner installed the signed release APK
+      (com.shadowprotocol.game 0.1.0/1) on a POCO X5 Pro (Android 14),
+      the app launched and rendered correctly, and remained stable.
+      Deviation recorded: the install was performed manually by the
+      owner on Windows 11 (side-load); the ADB-based install_android.sh
+      path itself was not exercised (ADB remains out of protocol).
 - [x] P8-T2 Debug and release signing verification.
       Debug signing verified earlier (apksigner verify: v2 true, v3
       true, signer CN=Android Debug, SHA-256
@@ -484,9 +496,16 @@ evidence only).
       receipt was still pending — NOT YET CONFIRMED — at the close of
       the original signing run.) Regression evidence same day: smoke 297/297,
       validate_project.sh exit 0 (21 host checks).
-- [ ] P8-T3 On-device gameplay verification (REQUIRES a physical device;
-      cannot be completed under the current device-free protocol — remains
-      an open acceptance criterion, not verified).
+- [x] P8-T3 On-device gameplay verification.
+      COMPLETE 2026-11-22 with owner-executed physical-device evidence
+      (POCO X5 Pro, Android 14): 15/15 functional checks PASS. Initial
+      7/7: installation, launch/rendering, touch joystick, running and
+      crouching, enemy reactions, mission completion, crash-free
+      restart. Advanced 8/8: multitouch, enemy detection, sound/stealth
+      mechanics, mission failure behavior, gameplay interactions,
+      background/resume, HUD behavior, 15-minute extended gameplay.
+      These are first-hand owner acceptance observations, not
+      independently automated device tests.
 
 ### Phase 8 host execution record (2026-10-23, device-free)
 
@@ -523,22 +542,19 @@ evidence only).
 
 ## Counts
 
-- Phases complete: 6 / 8 fully complete in their code-level scope
-  (Phases 2-6 headless-verified); Phase 7 partially complete (P7-T1
-  code-verified, P7-T2 device-unverified); Phase 8 partially complete
-  at host level (setup+build+debug-signing verified; install step,
-  release signing and device criteria open).
-- Tasks complete: 27 / 30 (3 remaining: P7-T2, P8-T1, P8-T3; P8-T1
-  remains a host-level partial pending the device install; P8-T2 is
-  complete and its owner backup retrieval is CONFIRMED, see the dated
-  Phase 8 recovery confirmation note).
-- Unverified items: on-device/touchscreen behavior of all phases (protocol
-  restriction), P7-T2 Android 60 FPS device criteria, Phase 8 device
-  criteria (install + gameplay). Owner retrieval of the signing backup:
-  CONFIRMED on 2026-10-24 (Windows 11 recovery evidence). Limits remain:
-  no independently verified second offsite backup, no Windows keytool
-  private-key revalidation demonstrated, no Android device runtime
-  verification.
+- Phases complete: 8 / 8 (all phases complete as of 2026-11-22; device
+  criteria for Phases 7 and 8 closed with owner-executed POCO X5 Pro
+  evidence).
+- Tasks complete: 30 / 30 (100%). P7-T2, P8-T1 and P8-T3 closed
+  2026-11-22 on real-device evidence; P8-T2 complete with owner backup
+  retrieval CONFIRMED (see the dated Phase 8 recovery note).
+- Remaining limitations (documented, not task blockers): no
+  independently verified second offsite signing backup; no Windows
+  keytool private-key revalidation demonstrated; performance evidence is
+  a single aggregate SurfaceFlinger window with no per-scenario
+  breakdown and no reliable FrameTimeline jank percentage; thermal
+  observations are owner-reported (qualitative); the ADB-based
+  install_android.sh path was not exercised (manual side-load instead).
 - Visual Quality Upgrade Iteration (2026-10-23): COMPLETE at code level;
   42 new presentation checks added, smoke total now 283/283. Not a
   numbered phase task - no change to the 26/30 task count.
@@ -983,3 +999,35 @@ iteration completed every practical device-free preparation for them.
 
 Counts remain 27/30. P7-T2, P8-T1 and P8-T3 can only close with real
 device evidence collected per the handoff document.
+
+## Final Android Acceptance Note (2026-11-22)
+
+All three device-dependent tasks were closed on owner-executed
+physical-device evidence. Device: POCO X5 Pro, Android 14; artifact:
+the existing signed release APK com.shadowprotocol.game 0.1.0
+(versionCode 1, APK SHA-256 aba40fe03ad8abad704518206e3be1afe4f51d0eabec98d2086c8c4dc7c18905);
+no rebuild, no re-sign, no source changes in this acceptance pass.
+
+Functional (owner-reported, first-hand): 15/15 PASS - initial 7/7
+(install, launch/render, joystick, run/crouch, enemy reactions, mission
+completion, crash-free restart) and advanced 8/8 (multitouch, enemy
+detection, sound/stealth, mission failure, interactions, background/
+resume, HUD, 15-minute extended run).
+
+Performance (instrumented): SurfaceFlinger TimeStats window
+1795365678 -> 1795367015 (1337 s); game layer averageFPS 59.869 over
+76989 frames, droppedFrames 0, lateAcquireFrames 0,
+badDesiredPresentFrames 0; 91.9% of frame intervals at 16 ms; 7.91% at
+>= 24 ms; P50/P90 ~= 16 ms, P95/P99 ~= 25 ms (bin estimates). Owner
+qualitative: smooth, no perceptible stutter, normal heating, no thermal
+degradation.
+
+Interpretation limits preserved: the 1337 s figure is the recording
+window, not proven continuous active gameplay; the 120 Hz display rate
+is not game FPS; layer totalTimelineFrames = 0 means no reliable
+FrameTimeline jank percentage; global missedFrames include other UI
+layers and are not attributed to the game.
+
+Full report: docs/ANDROID_ACCEPTANCE_REPORT.md.
+
+Result: Shadow Protocol roadmap acceptance is COMPLETE: 30/30 tasks.

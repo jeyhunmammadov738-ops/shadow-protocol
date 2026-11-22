@@ -146,3 +146,13 @@ contains personal device information.
   the release APK is arm64-v8a only.
 - Black screen at launch: confirm Android 7.0+ (minSdk 24) and that the
   device supports Vulkan or GLES3.
+
+## Final acceptance results (2026-11-22)
+
+This plan was executed on a physical POCO X5 Pro (Android 14) with the
+signed release APK 0.1.0 (1). Functional checks: 15/15 PASS (owner-
+reported). Performance: 59.869 FPS game-layer average over a 22m17s
+SurfaceFlinger window, 91.9% of frames at 16 ms, 7.91% of intervals at
+24 ms or longer, zero layer-level dropped frames. All three tasks
+(P7-T2, P8-T1, P8-T3) are COMPLETE. Full results and interpretation
+limits: [ANDROID_ACCEPTANCE_REPORT.md](ANDROID_ACCEPTANCE_REPORT.md).

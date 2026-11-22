@@ -75,6 +75,19 @@ grep -qi 'android debug' "$VER" \
   && ok "keystore verifier rejects the debug certificate" \
   || bad "debug-certificate rejection missing in verifier"
 
+# --- 3D skeleton (Phase 3D-1) static checks ---
+for f in scenes/main3d.tscn scenes/player3d.tscn scripts/player3d.gd scripts/camera_rig.gd scripts/main3d.gd tools/test_3d_phase1.gd; do
+  [ -f "$ROOT/$f" ] && ok "3D phase-1 file present: $f" || bad "missing 3D phase-1 file: $f"
+done
+grep -q "extends CharacterBody3D" "$ROOT/scripts/player3d.gd" && ok "player3d.gd extends CharacterBody3D" || bad "player3d.gd is not CharacterBody3D"
+grep -q "SpringArm3D" "$ROOT/scripts/camera_rig.gd" && ok "camera_rig.gd uses SpringArm3D collision-aware camera" || bad "camera_rig.gd lacks SpringArm3D"
+grep -q "is_position_owned" "$ROOT/scripts/camera_rig.gd" && ok "camera rig defers touch ownership to the shared touch layer" || bad "camera rig ignores touch ownership"
+grep -q "func is_position_owned" "$ROOT/scripts/mobile_controls.gd" && ok "touch layer exposes is_position_owned (single source of truth)" || bad "touch layer lacks is_position_owned"
+grep -q 'run/main_scene="res://scenes/main.tscn"' "$ROOT/project.godot" && ok "main scene remains the untouched 2D prototype" || bad "main scene changed"
+grep -q '\[node name="Main" type="Node2D"\]' "$ROOT/scenes/main.tscn" && ok "2D main.tscn root is still Node2D" || bad "2D main.tscn was altered"
+grep -q "res://scenes/player.tscn" "$ROOT/scenes/main.tscn" && ok "2D main.tscn still instances the 2D player" || bad "2D player instance removed"
+grep -q "res://tools/test_3d_phase1.gd" "$ROOT/tools/validate_project.sh" && ok "3D test is wired into validate_project.sh" || bad "3D test not wired into validation"
+
 # --- verify_release_apk_host.sh (reusable APK verification) ---
 VER="$ROOT/tools/verify_release_apk_host.sh"
 if [ -f "$VER" ]; then

@@ -99,6 +99,20 @@ func get_movement_vector() -> Vector2:
 	return _joystick_vector
 
 
+## True when a touch at this position is owned by the touch layer (joystick
+## zone or one of the action buttons) and must NOT be reused for another
+## gesture such as 3D camera rotation. Single source of truth for the
+## button geometry so the 3D camera rig can never conflict with
+## SPRINT/CROUCH/USE. Purely additive: no existing behaviour changes.
+func is_position_owned(pos: Vector2) -> bool:
+	for name: String in _buttons:
+		var btn: Dictionary = _buttons[name]
+		if pos.distance_to(btn["center"]) <= btn["radius"]:
+			return true
+	var zone_width: float = get_viewport_rect().size.x * JOYSTICK_ZONE_WIDTH_RATIO
+	return pos.x <= zone_width
+
+
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return

@@ -1031,3 +1031,26 @@ layers and are not attributed to the game.
 Full report: docs/ANDROID_ACCEPTANCE_REPORT.md.
 
 Result: Shadow Protocol roadmap acceptance is COMPLETE: 30/30 tasks.
+
+## 3D Conversion Programme Note (2026-11-22)
+
+The owner approved a separate 2D->3D conversion programme (analysis report:
+ShadowProtocol-3D-Conversion-Analysis). It is NOT a ninth roadmap phase and
+does not alter the 30-task acceptance record: 8 phases, 30 tasks, 30
+complete remain unchanged.
+
+Phase 3D-1 (3D skeleton, player, TPS camera) COMPLETE 2026-11-22:
+- New, fully separate files: scenes/main3d.tscn, scenes/player3d.tscn,
+  scripts/main3d.gd, scripts/player3d.gd, scripts/camera_rig.gd,
+  tools/test_3d_phase1.gd. The 2D scenes (main.tscn, player.tscn,
+  enemy.tscn) are untouched.
+- SpringArm3D collision-aware TPS camera; camera-relative movement with the
+  2D prototype's exact speed constants (240/105 units-s, sprint x1.45).
+- Touch conflict rule enforced by one source of truth:
+  mobile_controls.gd gains the additive is_position_owned(); the camera rig
+  refuses any touch that belongs to the joystick zone or the
+  SPRINT/CROUCH/USE buttons.
+- Evidence: 3D phase-1 test 33/33 PASS; smoke 297/297 PASS (2D unchanged);
+  host checks 40/40 PASS; import/boot/validate exit 0; release APK rebuilt
+  and signature-verified (fingerprint unchanged).
+Next: Phase 3D-2 (GridMap level generation) awaits owner approval.

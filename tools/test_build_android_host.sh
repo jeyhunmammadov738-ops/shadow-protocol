@@ -106,5 +106,24 @@ if [ -f "$VER" ]; then
   if bash "$VER" >/dev/null 2>&1; then bad "APK verifier accepts missing arguments"; else ok "APK verifier validates argument count"; fi
 fi
 
+# --- Phase 3D-2 (GridMap level generation) ---
+LIB="$ROOT/scripts/grid_cell_library.gd"
+GEN="$ROOT/scripts/level_generator_3d.gd"
+[ -f "$LIB" ] && ok "grid_cell_library.gd exists" || bad "grid_cell_library.gd missing"
+[ -f "$GEN" ] && ok "level_generator_3d.gd exists" || bad "level_generator_3d.gd missing"
+grep -q "BoxMesh" "$LIB" && ok "cell library builds procedural BoxMesh items" || bad "cell library is not BoxMesh based"
+grep -q "GridMap" "$GEN" && ok "3D generator drives a GridMap" || bad "3D generator does not use GridMap"
+grep -q "const CELL: float = 48.0" "$LIB" && grep -q "const CELL: float = 48.0" "$GEN" \
+  && ok "both 3D scripts use the authoritative 48-unit cell" || bad "48-unit cell constant missing"
+CAT_HASH="$(sha256sum "$ROOT/scripts/level_catalog.gd" | cut -d' ' -f1)"
+[ "$CAT_HASH" = "27d10bd6222cebaacc4d6383fe8984215d92bca079324cb7bd50c546fc60ea12" ] \
+  && ok "level_catalog.gd is unmodified (read-only layout data)" || bad "level_catalog.gd changed"
+grep -q "level_generator_3d.gd" "$ROOT/scenes/main3d.tscn" && ok "main3d.tscn wires the 3D generator" || bad "main3d.tscn is not wired to the generator"
+grep -q "res://tools/test_3d_phase2.gd" "$ROOT/tools/validate_project.sh" \
+  && ok "3D phase-2 test is wired into validate_project.sh" || bad "3D phase-2 test not wired"
+[ -f "$ROOT/tools/test_3d_phase2.gd" ] && ok "test_3d_phase2.gd exists" || bad "test_3d_phase2.gd missing"
+grep -q "layout_probe" "$ROOT/tools/validate_project.sh" || true
+grep -q "PROBE3D" "$ROOT/tools/layout_probe.gd" && ok "layout_probe.gd carries the 3D layout probe" || bad "layout_probe 3D section missing"
+
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

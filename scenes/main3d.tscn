@@ -1,8 +1,9 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/main3d.gd" id="1_m"]
 [ext_resource type="PackedScene" path="res://scenes/player3d.tscn" id="2_pl"]
 [ext_resource type="Script" path="res://scripts/mobile_controls.gd" id="3_t"]
+[ext_resource type="Script" path="res://scripts/level_generator_3d.gd" id="4_gen"]
 
 [sub_resource type="Environment" id="Environment_main3d"]
 background_mode = 1
@@ -10,24 +11,6 @@ background_color = Color(0.04, 0.05, 0.08, 1)
 ambient_light_source = 2
 ambient_light_color = Color(0.30, 0.38, 0.50, 1)
 ambient_light_energy = 0.6
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
-size = Vector3(576, 20, 576)
-
-[sub_resource type="BoxMesh" id="BoxMesh_ground"]
-size = Vector3(576, 20, 576)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
-albedo_color = Color(0.07, 0.09, 0.12, 1)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_wall"]
-size = Vector3(288, 160, 20)
-
-[sub_resource type="BoxMesh" id="BoxMesh_wall"]
-size = Vector3(288, 160, 20)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wall"]
-albedo_color = Color(0.16, 0.19, 0.25, 1)
 
 [node name="Main3D" type="Node3D"]
 script = ExtResource("1_m")
@@ -41,46 +24,7 @@ light_energy = 1.1
 shadow_enabled = true
 
 [node name="LevelRoot3D" type="Node3D" parent="."]
-
-[node name="Ground" type="StaticBody3D" parent="LevelRoot3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -10, 0)
-
-[node name="Mesh" type="MeshInstance3D" parent="LevelRoot3D/Ground"]
-mesh = SubResource("BoxMesh_ground")
-material_override = SubResource("StandardMaterial3D_ground")
-
-[node name="Collision" type="CollisionShape3D" parent="LevelRoot3D/Ground"]
-shape = SubResource("BoxShape3D_ground")
-
-[node name="WallBack" type="StaticBody3D" parent="LevelRoot3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 80, 200)
-
-[node name="Mesh" type="MeshInstance3D" parent="LevelRoot3D/WallBack"]
-mesh = SubResource("BoxMesh_wall")
-material_override = SubResource("StandardMaterial3D_wall")
-
-[node name="Collision" type="CollisionShape3D" parent="LevelRoot3D/WallBack"]
-shape = SubResource("BoxShape3D_wall")
-
-[node name="WallLeft" type="StaticBody3D" parent="LevelRoot3D"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -200, 80, 0)
-
-[node name="Mesh" type="MeshInstance3D" parent="LevelRoot3D/WallLeft"]
-mesh = SubResource("BoxMesh_wall")
-material_override = SubResource("StandardMaterial3D_wall")
-
-[node name="Collision" type="CollisionShape3D" parent="LevelRoot3D/WallLeft"]
-shape = SubResource("BoxShape3D_wall")
-
-[node name="WallRight" type="StaticBody3D" parent="LevelRoot3D"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 200, 80, 0)
-
-[node name="Mesh" type="MeshInstance3D" parent="LevelRoot3D/WallRight"]
-mesh = SubResource("BoxMesh_wall")
-material_override = SubResource("StandardMaterial3D_wall")
-
-[node name="Collision" type="CollisionShape3D" parent="LevelRoot3D/WallRight"]
-shape = SubResource("BoxShape3D_wall")
+script = ExtResource("4_gen")
 
 [node name="Player3D" parent="." instance=ExtResource("2_pl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)

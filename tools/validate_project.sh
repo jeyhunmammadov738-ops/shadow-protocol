@@ -16,26 +16,26 @@ if ! command -v "$GODOT_BIN" >/dev/null 2>&1; then
 fi
 echo "Using Godot: $($GODOT_BIN --version 2>&1 | head -n1)"
 
-echo "[1/6] Importing resources..."
+echo "[1/7] Importing resources..."
 "$GODOT_BIN" --headless --path "$ROOT" --import >"$LOG" 2>&1 || {
   tail -n 40 "$LOG"; echo "ERROR: resource import failed."; exit 1; }
 
-echo "[2/6] Running main scene headless for $FRAMES frames..."
+echo "[2/7] Running main scene headless for $FRAMES frames..."
 "$GODOT_BIN" --headless --path "$ROOT" --quit-after "$FRAMES" >"$LOG" 2>&1 || {
   tail -n 60 "$LOG"; echo "ERROR: headless run failed."; exit 1; }
 
-echo "[3/6] Scanning output for script and scene errors..."
+echo "[3/7] Scanning output for script and scene errors..."
 if grep -nEi "script error|parse error|failed to load" "$LOG"; then
   echo "ERROR: errors detected during headless run."; exit 1
 fi
 
-echo "[4/6] Running headless smoke test (movement, crouch, joystick, stealth)..."
+echo "[4/7] Running headless smoke test (movement, crouch, joystick, stealth)..."
 "$GODOT_BIN" --headless --path "$ROOT" res://tools/smoke_test.tscn >"$LOG" 2>&1 || {
   tail -n 40 "$LOG"; echo "ERROR: smoke test failed."; exit 1; }
 grep -q "SMOKE TEST: all checks passed" "$LOG" || {
   tail -n 40 "$LOG"; echo "ERROR: smoke test did not pass."; exit 1; }
 
-echo "[5/6] Running 3D phase-1 acceptance test (player, TPS camera, touch zones)..."
+echo "[5/7] Running 3D phase-1 acceptance test (player, TPS camera, touch zones)..."
 "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase1.gd >"$LOG" 2>&1 || {
   tail -n 60 "$LOG"; echo "ERROR: 3D phase-1 test failed."; exit 1; }
 grep -q "3D PHASE-1 TEST: all checks passed" "$LOG" || {
@@ -43,7 +43,13 @@ grep -q "3D PHASE-1 TEST: all checks passed" "$LOG" || {
 
 # Host-only Android build-script checks (P8-T2 naming/signing logic).
 if [ -x "$ROOT/tools/test_build_android_host.sh" ]; then
-  echo "[6/6] Running Android build host checks..."
+  echo "[6/7] Running 3D phase-2 test (GridMap parity, collisions, spawn)..."
+  "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase2.gd >"$LOG" 2>&1 || {
+    tail -n 60 "$LOG"; echo "ERROR: 3D phase-2 test failed."; exit 1; }
+  grep -E "3D PHASE-2 TEST:" "$LOG" || {
+    tail -n 60 "$LOG"; echo "ERROR: 3D phase-2 test did not pass."; exit 1; }
+
+  echo "[7/7] Running Android build host checks..."
   bash "$ROOT/tools/test_build_android_host.sh" || {
     echo "ERROR: Android build host checks failed."; exit 1; }
 fi

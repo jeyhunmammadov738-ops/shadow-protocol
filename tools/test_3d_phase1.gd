@@ -90,6 +90,14 @@ func _run() -> void:
 		"camera distance %.1f within spring length %.1f" % [dist, spring.spring_length])
 
 	# --- grounded forward movement (camera-relative) ---
+	# Phase 3D-2: main3d.tscn now generates a real GridMap layout. Move the
+	# player into the wide open south corridor so these assertions measure
+	# locomotion and camera-relative direction, not wall collisions.
+	if main.level_root != null:
+		player.global_position = main.level_root.cell_to_world(Vector2i(6, 13))
+		player.velocity = Vector3.ZERO
+		await physics_frame
+		await physics_frame
 	var start: Vector3 = player.global_position
 	player.use_input_override = true
 	player.input_override = Vector2(0.0, -1.0)

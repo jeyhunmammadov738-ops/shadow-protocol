@@ -1054,3 +1054,18 @@ Phase 3D-1 (3D skeleton, player, TPS camera) COMPLETE 2026-11-22:
   host checks 40/40 PASS; import/boot/validate exit 0; release APK rebuilt
   and signature-verified (fingerprint unchanged).
 Next: Phase 3D-2 (GridMap level generation) awaits owner approval.
+
+## 3D Conversion Programme Note (2026-11-23)
+
+Phase 3D-2 (GridMap level generation) COMPLETE. New files:
+scripts/grid_cell_library.gd (procedural BoxMesh MeshLibrary: floor
+shadow/lit, two wall variants) and scripts/level_generator_3d.gd
+(GridMap, 48-unit cells mapped 1:1 from the authoritative LevelCatalog
+grids). level_catalog.gd remains unmodified (sha256 27d10bd6...).
+Parity: LEGACY 142/142 walls, 306/306 walkable; LAYOUT_B 127/127;
+LAYOUT_C 103/103; seeded layouts 341/341 and 275/275. Generation
+1.2-2.5 ms (limit 150 ms). Wall collisions sampled at y=120, floors at
+y=0; player spawns on the layout spawn cell and is blocked by walls.
+Tests: 3D phase-2 50/50, phase-1 33/33, 2D smoke 297/297, host checks
+50/50, import/boot/validate exit 0. Still a separate programme: the
+30-task acceptance roadmap above is unchanged (8 phases, 30/30).

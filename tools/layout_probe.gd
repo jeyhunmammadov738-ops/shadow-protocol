@@ -52,7 +52,55 @@ func _process(_delta: float) -> bool:
 	# Restart stability: two probes two frames apart at the final size.
 	if frames == _final_probe_frame():
 		_probe("restart-check")
-		quit()
+		_probe_3d_async()
 	return false
 func _final_probe_frame() -> int:
 	return 5 + SIZES.size() * 4 + 2
+
+
+## Phase 3D-2: layout + collision probe for the GridMap generator. Prints one
+## PROBE3D line per layout (authored and seeded) with cell parity, wall and
+## floor collision results and generation time. Read-only: level_catalog.gd
+## data is never modified.
+func _probe_3d_async() -> void:
+	var cases := [
+		{"name": "legacy", "rows": LevelCatalog.LEGACY["rows"], "zones": LevelCatalog.LEGACY["zones"]},
+		{"name": "layout_b", "rows": LevelCatalog.LAYOUT_B["rows"], "zones": LevelCatalog.LAYOUT_B["zones"]},
+		{"name": "layout_c", "rows": LevelCatalog.LAYOUT_C["rows"], "zones": LevelCatalog.LAYOUT_C["zones"]},
+	]
+	var seeded: Dictionary = LevelCatalog.generate_layout(7)
+	cases.append({"name": "seed_7", "rows": seeded["rows"], "zones": seeded.get("zones", [])})
+	for case in cases:
+		var rows: Array = case["rows"]
+		var census := {"wall": 0, "floor": 0}
+		for row in rows:
+			for i in range((row as String).length()):
+				var c: String = (row as String)[i]
+				if c == "2":
+					census["wall"] += 1
+				elif c != " ":
+					census["floor"] += 1
+		var gen := LevelGenerator3D.new()
+		root.add_child(gen)
+		var data: Dictionary = gen.generate(rows, case["zones"])
+		await physics_frame
+		await physics_frame
+		var counts: Dictionary = data["counts"]
+		var parity: bool = int(counts["wall"]) == int(census["wall"]) 			and int(data["walkable_cells"]) == int(census["floor"])
+		var space := gen.get_world_3d().direct_space_state
+		var wall_hit_ok := true
+		var walls: Array = data["wall_cells"].keys()
+		if walls.size() > 0:
+			var cell: Vector2i = walls[0]
+			var centre: Vector3 = gen.cell_to_world(cell)
+			var q := PhysicsRayQueryParameters3D.create(
+				centre + Vector3(0, 300, 0), centre - Vector3(0, 300, 0), 1)
+			var hit: Dictionary = space.intersect_ray(q)
+			wall_hit_ok = not hit.is_empty() 				and absf(float(hit["position"].y) - GridCellLibrary.WALL_HEIGHT) < 1.0
+		print("PROBE3D[", case["name"], "] cells=", data["gridmap_cells"],
+			" walls=", counts["wall"], "/", census["wall"],
+			" walkable=", data["walkable_cells"], "/", census["floor"],
+			" parity=", parity, " wall_collision=", wall_hit_ok,
+			" spawn=", data["spawn_cell"], " gen_usec=", data["generation_usec"])
+		gen.free()
+	quit()

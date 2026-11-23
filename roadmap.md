@@ -1087,3 +1087,21 @@ crouch 90, sprint 320); layout lamps register with the 3D core.
 Tests: 3D phase-3 20/20, phase-2 50/50, phase-1 33/33, 2D smoke
 297/297, host checks 64/64, import/boot/validate exit 0. Still a
 separate programme: the 30-task acceptance roadmap is unchanged.
+
+## 3D Conversion Programme Note (2026-11-23, Phase 3D-4)
+
+Enemy AI in 3D COMPLETE. New files: scenes/enemy3d.tscn,
+scripts/enemy3d.gd (faithful port of scripts/enemy.gd: same six-state
+FSM, thresholds 0.3/1.0, suspicion gain 1.6 / decay 0.45, ai_interval
+0.1 s, same noise priority rules) and scripts/vision_cone_mesh.gd
+(procedural fan, decorative only). Detection keeps the 2D formula
+(visibility x distance factor + close-range floor) with a 100-degree
+FOV dot gate and a real 3D raycast LOS against wall layer 1. Guards
+spawn from the layout's '5' markers with deterministic BFS + grid-LOS
+patrol routes (no randomness, no physics dependency).
+Tests: 3D phase-4 32/32 (FSM transitions, wall-blocked LOS, noise
+priorities, ALERT ignores noise, clean unsubscribe, patrol determinism,
+AI decision cost 0.003 ms, 240-frame 8-enemy loop 4.0 s with no stalls),
+phase-3 20/20, phase-2 50/50, phase-1 33/33, 2D smoke 297/297, host
+checks 74/74, import/boot/validate exit 0. The 30-task acceptance
+roadmap remains unchanged (8 phases, 30/30).

@@ -22,6 +22,7 @@ var current_layout: String = "legacy"
 var stealth: StealthSystem3D = null
 var _level_lights: Array = []
 var level_data: Dictionary = {}
+var _enemies: Array = []
 
 
 func _ready() -> void:
@@ -60,6 +61,7 @@ func load_layout(key: String) -> Dictionary:
 		player.velocity = Vector3.ZERO
 	_configure_stealth()
 	_spawn_lights(descriptor)
+	_spawn_enemies()
 	return level_data
 
 
@@ -138,3 +140,87 @@ func _spawn_lights(descriptor: Dictionary) -> void:
 		if stealth != null:
 			stealth.register_light(moving)
 		_level_lights.append(moving)
+
+
+# ------------------------------------------------------- Phase 3D-4: guards ---
+
+## Spawns one Enemy3D per '5' marker with a deterministic BFS + straight
+## line-of-sight patrol route on the XZ grid (no randomness, no physics).
+func _spawn_enemies() -> void:
+	for e in _enemies:
+		if is_instance_valid(e):
+			e.queue_free()
+	_enemies.clear()
+	var spawns: Array = level_data.get("enemy_spawns", [])
+	for i in range(spawns.size()):
+		var enemy: Node3D = load("res://scenes/enemy3d.tscn").instantiate()
+		enemy.name = "Enemy3D%d" % i
+		add_child(enemy)
+		enemy.global_position = spawns[i]
+		enemy.set_enemy_id(StringName("enemy_%d" % i))
+		enemy.set_player(player)
+		enemy.set_stealth(stealth)
+		enemy.set_patrol_route(_build_patrol_route(spawns[i]))
+		_enemies.append(enemy)
+
+
+func enemies() -> Array:
+	return _enemies
+
+
+## Deterministic patrol route: BFS over open XZ cells (4 steps), then up to
+## four waypoints chosen farthest-first and filtered by straight-line grid
+## line of sight (walls block, doors are passable cells).
+func _build_patrol_route(spawn_world: Vector3) -> Array:
+	var cell_size: float = level_data["cell_size"]
+	var start: Vector2i = Vector2i(int(spawn_world.x / cell_size), int(spawn_world.z / cell_size))
+	var walls: Dictionary = level_data["wall_cells"]
+	var open_cells: Array[Vector2i] = []
+	var seen: Dictionary = {start: true}
+	var frontier: Array[Vector2i] = [start]
+	for step in range(4):
+		var next: Array[Vector2i] = []
+		for cell: Vector2i in frontier:
+			for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var nc: Vector2i = cell + d
+				if seen.has(nc) or walls.has(nc):
+					continue
+				seen[nc] = true
+				open_cells.append(nc)
+				next.append(nc)
+		frontier = next
+	var route: Array[Vector3] = [spawn_world]
+	var current: Vector2i = start
+	var used: Dictionary = {start: true}
+	while route.size() < 4 and open_cells.size() > 0:
+		var best_cell: Vector2i = Vector2i(-9999, -9999)
+		var best_dist: float = -1.0
+		for candidate: Vector2i in open_cells:
+			if used.has(candidate):
+				continue
+			if not _grid_los(current, candidate, walls):
+				continue
+			var dist: float = Vector2(candidate - current).length()
+			if dist > best_dist:
+				best_dist = dist
+				best_cell = candidate
+		if best_cell.x == -9999:
+			break
+		used[best_cell] = true
+		current = best_cell
+		route.append(Vector3((best_cell.x + 0.5) * cell_size, spawn_world.y, (best_cell.y + 0.5) * cell_size))
+	return route
+
+
+## Grid line-of-sight: samples the segment in quarter-cell steps.
+func _grid_los(a: Vector2i, b: Vector2i, walls: Dictionary) -> bool:
+	var delta: Vector2 = Vector2(b - a)
+	var steps: int = int(maxf(absf(delta.x), absf(delta.y)) * 4.0)
+	if steps == 0:
+		return true
+	for i in range(1, steps):
+		var t: float = float(i) / float(steps)
+		var cell: Vector2i = Vector2i(int(round(a.x + delta.x * t)), int(round(a.y + delta.y * t)))
+		if walls.has(cell):
+			return false
+	return true

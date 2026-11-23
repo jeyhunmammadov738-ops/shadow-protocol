@@ -145,5 +145,17 @@ grep -q "set_stealth" "$ROOT/scripts/player3d.gd" && ok "Player3D wires into the
 grep -q "StealthSystem3D" "$ROOT/scripts/main3d.gd" && ok "main3d owns a StealthSystem3D" || bad "main3d stealth core missing"
 grep -q "res://tools/test_3d_phase3.gd" "$ROOT/tools/validate_project.sh" && ok "phase-3 test wired into validation" || bad "phase-3 test not wired"
 
+# --- Phase 3D-4 (Enemy AI in 3D + vision cone) ---
+[ -f "$ROOT/scenes/enemy3d.tscn" ] && ok "enemy3d.tscn exists" || bad "enemy3d.tscn missing"
+[ -f "$ROOT/scripts/enemy3d.gd" ] && ok "enemy3d.gd exists" || bad "enemy3d.gd missing"
+[ -f "$ROOT/scripts/vision_cone_mesh.gd" ] && ok "vision_cone_mesh.gd exists" || bad "vision_cone_mesh.gd missing"
+[ -f "$ROOT/tools/test_3d_phase4.gd" ] && ok "test_3d_phase4.gd exists" || bad "test_3d_phase4.gd missing"
+grep -q "STATE_PATROL" "$ROOT/scripts/enemy3d.gd" && grep -q "STATE_RETURNING" "$ROOT/scripts/enemy3d.gd" && ok "enemy3d keeps the six FSM states" || bad "FSM states missing in enemy3d"
+grep -q "PhysicsRayQueryParameters3D" "$ROOT/scripts/enemy3d.gd" && ok "enemy3d uses 3D raycast LOS" || bad "3D LOS raycast missing"
+grep -q "ai_interval" "$ROOT/scripts/enemy3d.gd" && ok "enemy3d keeps ai_interval throttling" || bad "ai_interval throttling missing"
+grep -q "noise_emitted" "$ROOT/scripts/enemy3d.gd" && ok "enemy3d subscribes to StealthSystem3D noise" || bad "noise subscription missing"
+grep -q "res://tools/test_3d_phase4.gd" "$ROOT/tools/validate_project.sh" && ok "phase-4 test wired into validation" || bad "phase-4 test not wired"
+grep -q '\[node name="Enemy" type="CharacterBody2D"\]' "$ROOT/scenes/enemy.tscn" && ok "2D enemy.tscn untouched (CharacterBody2D)" || bad "2D enemy.tscn altered"
+
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

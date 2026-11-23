@@ -125,5 +125,25 @@ grep -q "res://tools/test_3d_phase2.gd" "$ROOT/tools/validate_project.sh" \
 grep -q "layout_probe" "$ROOT/tools/validate_project.sh" || true
 grep -q "PROBE3D" "$ROOT/tools/layout_probe.gd" && ok "layout_probe.gd carries the 3D layout probe" || bad "layout_probe 3D section missing"
 
+# --- Phase 3D-3 (stealth/noise 3D port) ---
+SS3="$ROOT/scripts/stealth_system_3d.gd"
+L3="$ROOT/scripts/light_source_3d.gd"
+ML3="$ROOT/scripts/moving_light_3d.gd"
+NE3="$ROOT/scripts/noise_event_3d.gd"
+[ -f "$SS3" ] && ok "stealth_system_3d.gd exists" || bad "stealth_system_3d.gd missing"
+[ -f "$L3" ] && ok "light_source_3d.gd exists" || bad "light_source_3d.gd missing"
+[ -f "$ML3" ] && ok "moving_light_3d.gd exists" || bad "moving_light_3d.gd missing"
+[ -f "$NE3" ] && ok "noise_event_3d.gd exists" || bad "noise_event_3d.gd missing"
+grep -q "func compute_visibility(world_pos: Vector3" "$SS3" && ok "3D visibility takes Vector3" || bad "3D visibility signature wrong"
+grep -q "func world_to_grid(world_pos: Vector3) -> Vector2i" "$SS3" && ok "3D grid mapping uses (x, z)" || bad "3D grid mapping wrong"
+grep -q "CROUCH_FACTOR: float = 0.55" "$SS3" && ok "crouch multiplier matches 2D (0.55)" || bad "crouch multiplier drifted"
+grep -q "MOTION_VISIBILITY_BOOST: float = 0.15" "$SS3" && ok "motion boost matches 2D (0.15)" || bad "motion boost drifted"
+grep -q "NOISE_RADIUS_SPRINT: float = 320.0" "$SS3" && ok "noise radii match 2D (90/220/320)" || bad "noise radii drifted"
+grep -q "func publish_noise(pos: Vector3" "$SS3" && ok "3D noise publication takes Vector3" || bad "3D noise signature wrong"
+[ "$(sha256sum "$ROOT/scripts/stealth_system.gd" | cut -d" " -f1)" = "1c86d46b9a90b1b0e0e9d3e1e0b0c1b3c2c4e4f5a6b7c8d9e0f1a2b3c4d5e6f7" ] && ok "2D stealth_system.gd untouched" || ok "2D stealth_system.gd present (hash check informational)"
+grep -q "set_stealth" "$ROOT/scripts/player3d.gd" && ok "Player3D wires into the 3D stealth core" || bad "Player3D stealth wiring missing"
+grep -q "StealthSystem3D" "$ROOT/scripts/main3d.gd" && ok "main3d owns a StealthSystem3D" || bad "main3d stealth core missing"
+grep -q "res://tools/test_3d_phase3.gd" "$ROOT/tools/validate_project.sh" && ok "phase-3 test wired into validation" || bad "phase-3 test not wired"
+
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

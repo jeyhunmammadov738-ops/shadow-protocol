@@ -1069,3 +1069,21 @@ y=0; player spawns on the layout spawn cell and is blocked by walls.
 Tests: 3D phase-2 50/50, phase-1 33/33, 2D smoke 297/297, host checks
 50/50, import/boot/validate exit 0. Still a separate programme: the
 30-task acceptance roadmap above is unchanged (8 phases, 30/30).
+
+## 3D Conversion Programme Note (2026-11-23, Phase 3D-3)
+
+StealthSystem 3D port COMPLETE with exact mathematical parity. New files:
+scripts/stealth_system_3d.gd (Vector3 world coords, (x, z) grid mapping),
+scripts/light_source_3d.gd, scripts/moving_light_3d.gd,
+scripts/noise_event_3d.gd. The 2D autoload and all 2D scripts are
+untouched; the 3D core is a separate class owned by main3d.
+Parity proof (tools/test_3d_phase3.gd, tolerance 1e-6): grid
+illumination 64 cells, quadratic light falloff 289 samples, visibility
+1210 input combinations, noise radii 28 combinations, moving-light path
+7 times, grid conversion 5 cases, same-frame noise dedup - measured
+MAXIMUM DELTA 0.0. Integration: Player3D pushes live visibility and
+publishes noise at the 0.25 s cadence with the 2D radii (walk 220 band,
+crouch 90, sprint 320); layout lamps register with the 3D core.
+Tests: 3D phase-3 20/20, phase-2 50/50, phase-1 33/33, 2D smoke
+297/297, host checks 64/64, import/boot/validate exit 0. Still a
+separate programme: the 30-task acceptance roadmap is unchanged.

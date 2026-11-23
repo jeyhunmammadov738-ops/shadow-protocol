@@ -34,6 +34,19 @@ var use_input_override: bool = false
 var crouching: bool = false
 var sprinting: bool = false
 
+## 3D stealth integration (Phase 3D-3): pushed visibility + published noise.
+signal visibility_updated(value: float)
+var visibility: float = 0.0
+var speed_ratio: float = 0.0
+
+const NOISE_INTERVAL: float = 0.25
+const NOISE_RADIUS_CROUCHED: float = 90.0
+const NOISE_RADIUS_WALKING: float = 220.0
+const NOISE_RADIUS_SPRINT: float = 320.0
+
+var _stealth: Node = null
+var _noise_timer: float = 0.0
+
 var _touch_layer: Control = null
 var _touch_crouch: bool = false
 var _touch_sprint: bool = false
@@ -51,6 +64,11 @@ func _ready() -> void:
 ## same overlay drives both prototypes; nothing about it is duplicated.
 func set_touch_controls(layer: Control) -> void:
 	_touch_layer = layer
+
+
+## Registers the 3D stealth core (StealthSystem3D owned by main3d).
+func set_stealth(system: Node) -> void:
+	_stealth = system
 
 
 func set_touch_crouch(active: bool) -> void:
@@ -89,6 +107,7 @@ func _physics_process(delta: float) -> void:
 	if desired_dir.length() > 1.0:
 		desired_dir = desired_dir.normalized()
 
+	speed_ratio = clampf(Vector2(velocity.x, velocity.z).length() / maxf(max_speed, 1.0), 0.0, 1.0)
 	var desired := Vector3(desired_dir.x * max_speed, 0.0, desired_dir.z * max_speed)
 	var weight: float = ACCELERATION if desired_dir.length_squared() > 0.0001 else FRICTION
 	var flat := Vector3(velocity.x, 0.0, velocity.z).lerp(desired, minf(1.0, weight * delta))
@@ -96,6 +115,8 @@ func _physics_process(delta: float) -> void:
 	velocity.z = flat.z
 
 	move_and_slide()
+	_update_stealth()
+	_update_noise(delta)
 
 	# Face the movement direction (visual only, never the collision body).
 	if desired_dir.length_squared() > 0.0001 and _visual != null:
@@ -127,3 +148,43 @@ func _apply_posture(delta: float, immediate: bool = false) -> void:
 			_visual.scale.y = 1.0 if immediate else lerpf(_visual.scale.y, shape.height / STAND_HEIGHT, minf(1.0, 10.0 * delta))
 	_camera_rig.position.y = target_cam if immediate \
 		else lerpf(_camera_rig.position.y, target_cam, minf(1.0, 10.0 * delta))
+
+
+## Pushes live visibility from the 3D stealth core (Phase 3D-3).
+func _update_stealth() -> void:
+	if _stealth == null:
+		return
+	visibility = _stealth.compute_visibility(global_position, crouching, speed_ratio)
+	visibility_updated.emit(visibility)
+
+
+## Publishes movement noise at the same 0.25 s cadence and radii as the 2D
+## player, through StealthSystem3D.publish_noise().
+func _update_noise(delta: float) -> void:
+	var horizontal := Vector2(velocity.x, velocity.z)
+	if horizontal.length() < 5.0:
+		_noise_timer = 0.0
+		return
+	_noise_timer += delta
+	if _noise_timer >= NOISE_INTERVAL:
+		_noise_timer = 0.0
+		if _stealth != null:
+			_stealth.publish_noise(global_position, current_noise_radius(), &"player", movement_state())
+
+
+## Same radius formula as scripts/player.gd.
+func current_noise_radius() -> float:
+	if crouching:
+		return NOISE_RADIUS_CROUCHED
+	if sprinting:
+		return NOISE_RADIUS_SPRINT
+	return NOISE_RADIUS_WALKING * (0.55 + 0.45 * speed_ratio)
+
+
+## Movement state label carried by the noise event.
+func movement_state() -> StringName:
+	if crouching:
+		return &"crouch"
+	if sprinting:
+		return &"sprint"
+	return &"walk"

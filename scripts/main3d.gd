@@ -18,6 +18,9 @@ const LAYOUTS := {
 @onready var _hud: Label = $UI/HUD
 
 var current_layout: String = "legacy"
+## 3D stealth/noise core (Phase 3D-3): owned by this scene, never global.
+var stealth: StealthSystem3D = null
+var _level_lights: Array = []
 var level_data: Dictionary = {}
 
 
@@ -28,6 +31,11 @@ func _ready() -> void:
 		touch_layer.crouch_toggled.connect(player.set_touch_crouch)
 		touch_layer.sprint_toggled.connect(player.set_touch_sprint)
 		# INTERACT has no 3D target until Phase 3D-5 (terminals/doors).
+	stealth = StealthSystem3D.new()
+	stealth.name = "StealthSystem3D"
+	add_child(stealth)
+	if player.has_method("set_stealth"):
+		player.set_stealth(stealth)
 	load_layout("legacy")
 
 
@@ -50,6 +58,8 @@ func load_layout(key: String) -> Dictionary:
 	if player != null:
 		player.global_position = level_data["spawn"]
 		player.velocity = Vector3.ZERO
+	_configure_stealth()
+	_spawn_lights(descriptor)
 	return level_data
 
 
@@ -83,3 +93,48 @@ func _process(_delta: float) -> void:
 		int(counts.get("wall", 0)),
 		int(level_data.get("generation_usec", 0)),
 	]
+
+
+## Feeds the generated level into the 3D stealth core (Phase 3D-3).
+func _configure_stealth() -> void:
+	if stealth == null:
+		return
+	stealth.configure(
+		level_data.get("lit_cells", {}),
+		float(level_data.get("cell_size", 48.0)),
+		level_data.get("origin", Vector3.ZERO),
+		level_data.get("wall_cells", {}))
+
+
+## Static and moving lamps from layout metadata, registered with the 3D
+## stealth core. Gameplay geometry stays on the XZ plane (y = 0) so the
+## 2D formula parity holds; the visual lamp sits slightly above the floor.
+func _spawn_lights(descriptor: Dictionary) -> void:
+	for lamp: Node in _level_lights:
+		if is_instance_valid(lamp):
+			lamp.queue_free()
+	_level_lights.clear()
+	for lamp: Dictionary in descriptor.get("lights", []):
+		var light := LightSource3D.new()
+		var p: Vector2 = lamp["pos"]
+		light.position = Vector3(p.x, 0.0, p.y)
+		light.light_radius = lamp["radius"]
+		light.light_intensity = lamp["intensity"]
+		light.set_meta("visual_offset", 60.0)
+		add_child(light)
+		if stealth != null:
+			stealth.register_light(light)
+		_level_lights.append(light)
+	for ml: Dictionary in descriptor.get("moving_lights", []):
+		var moving := MovingLight3D.new()
+		moving.light_radius = ml["radius"]
+		moving.light_intensity = ml["intensity"]
+		var a: Vector2 = ml["a"]
+		var b: Vector2 = ml["b"]
+		moving.point_a = Vector3(a.x, 0.0, a.y)
+		moving.point_b = Vector3(b.x, 0.0, b.y)
+		moving.speed = ml["speed"]
+		add_child(moving)
+		if stealth != null:
+			stealth.register_light(moving)
+		_level_lights.append(moving)

@@ -1,47 +1,58 @@
 extends Node3D
-## Shadow Protocol - Phase 3D-1/3D-2 scene wiring (main3d.tscn).
+## Shadow Protocol - 3D scene wiring (Phases 3D-1 .. 3D-5).
 ##
 ## Kept fully separate from the 2D prototype: main.tscn and its scripts are
-## untouched. Generates the selected layout with LevelGenerator3D, spawns the
-## player on the layout's spawn cell, and connects the shared touch overlay
-## (scripts/mobile_controls.gd) to the 3D player.
+## untouched. Owns the generated level, the 3D stealth core, the guards,
+## the mission objects and the shared MissionManager state machine.
 
-const LAYOUTS := {
-	"1": {"label": "legacy", "index": 0},
-	"2": {"label": "layout_b", "index": 1},
-	"3": {"label": "layout_c", "index": 2},
-}
+const INTERACT_RADIUS: float = 96.0
+const CELL_3D: float = 48.0
+const EYE_HEIGHT: float = 55.0
 
 @onready var player: CharacterBody3D = $Player3D
 @onready var touch_layer: Control = $UI/TouchLayer
-@onready var level_root: LevelGenerator3D = $LevelRoot3D
 @onready var _hud: Label = $UI/HUD
+@onready var level_root: LevelGenerator3D = $LevelRoot3D
 
 var current_layout: String = "legacy"
-## 3D stealth/noise core (Phase 3D-3): owned by this scene, never global.
-var stealth: StealthSystem3D = null
-var _level_lights: Array = []
 var level_data: Dictionary = {}
+## 3D stealth/noise core (Phase 3D-3), owned by this scene.
+var stealth: StealthSystem3D = null
+## Single authoritative mission state machine (shared with the 2D game).
+var mission: MissionManager = null
+
+var terminals: Array = []
+var doors: Array = []
+var extraction: Node3D = null
 var _enemies: Array = []
+var _level_lights: Array = []
 
 
 func _ready() -> void:
-	if player != null and player.has_method("set_touch_controls"):
-		player.set_touch_controls(touch_layer)
 	if touch_layer != null and player != null:
 		touch_layer.crouch_toggled.connect(player.set_touch_crouch)
 		touch_layer.sprint_toggled.connect(player.set_touch_sprint)
-		# INTERACT has no 3D target until Phase 3D-5 (terminals/doors).
+		touch_layer.interact_pressed.connect(_on_interact)
 	stealth = StealthSystem3D.new()
 	stealth.name = "StealthSystem3D"
 	add_child(stealth)
 	if player.has_method("set_stealth"):
 		player.set_stealth(stealth)
+	mission = MissionManager.new()
+	mission.name = "MissionManager3D"
+	add_child(mission)
+	mission.zone_provider = Callable(self, "_zone_at_3d")
+	mission.mission_state_changed.connect(_on_mission_state_changed)
+	mission.objective_progress_changed.connect(_on_objective_progress)
+	mission.extraction_availability_changed.connect(_on_extraction_availability)
+	mission.mission_succeeded.connect(_on_mission_succeeded)
+	mission.mission_failed.connect(_on_mission_failed)
 	load_layout("legacy")
 
 
 ## Generates a named authored layout ("legacy", "layout_b", "layout_c") or a
 ## seeded procedural layout ("seed:7") and places the player on its spawn.
+## Everything is rebuilt from scratch: guards, mission objects, mission state.
 func load_layout(key: String) -> Dictionary:
 	var descriptor: Dictionary
 	if key.begins_with("seed:"):
@@ -62,7 +73,18 @@ func load_layout(key: String) -> Dictionary:
 	_configure_stealth()
 	_spawn_lights(descriptor)
 	_spawn_enemies()
+	_spawn_mission_objects()
+	_start_mission()
 	return level_data
+
+
+## Guards currently alive in this scene (tests, future AI tooling).
+func enemies() -> Array:
+	var alive: Array = []
+	for e in _enemies:
+		if is_instance_valid(e) and not e.is_queued_for_deletion():
+			alive.append(e)
+	return alive
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -70,51 +92,44 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	var key: String = OS.get_keycode_string(event.keycode)
 	match key:
-		"1":
-			load_layout("legacy")
-		"2":
-			load_layout("layout_b")
-		"3":
-			load_layout("layout_c")
+		"1", "2", "3":
+			load_layout({"1": "legacy", "2": "layout_b", "3": "layout_c"}[key])
 		"4":
 			load_layout("seed:7")
+		"E":
+			_on_interact()
+		"R":
+			load_layout(current_layout)
 
 
-func _process(_delta: float) -> void:
-	if _hud == null or player == null:
-		return
-	var rig := player.get_node_or_null("CameraRig")
-	var yaw_text: String = "0"
-	if rig != null and rig.has_method("get_yaw"):
-		yaw_text = str(snappedf(rad_to_deg(rig.get_yaw()), 1.0))
-	var counts: Dictionary = level_data.get("counts", {})
-	_hud.text = "3D %s  |  FPS %d  |  yaw %s°  |  walls %d  |  gen %d µs  |  1/2/3/4 layouts" % [
-		current_layout.to_upper(),
-		Engine.get_frames_per_second(),
-		yaw_text,
-		int(counts.get("wall", 0)),
-		int(level_data.get("generation_usec", 0)),
-	]
+# ------------------------------------------------------------- stealth core ---
 
-
-## Feeds the generated level into the 3D stealth core (Phase 3D-3).
 func _configure_stealth() -> void:
 	if stealth == null:
 		return
+	stealth.clear_doors()
 	stealth.configure(
 		level_data.get("lit_cells", {}),
-		float(level_data.get("cell_size", 48.0)),
+		level_data.get("cell_size", CELL_3D),
 		level_data.get("origin", Vector3.ZERO),
-		level_data.get("wall_cells", {}))
+		level_data.get("wall_cells", {})
+	)
 
 
-## Static and moving lamps from layout metadata, registered with the 3D
-## stealth core. Gameplay geometry stays on the XZ plane (y = 0) so the
-## 2D formula parity holds; the visual lamp sits slightly above the floor.
+func _zone_at_3d(pos: Vector3) -> StringName:
+	var cell := Vector2i(int(floor(pos.x / CELL_3D)), int(floor(pos.z / CELL_3D)))
+	for zone in level_data.get("zones", []):
+		if (zone["rect"] as Rect2i).has_point(cell):
+			return zone["id"]
+	return &""
+
+
+# ------------------------------------------------------------------- lights ---
+
 func _spawn_lights(descriptor: Dictionary) -> void:
-	for lamp: Node in _level_lights:
-		if is_instance_valid(lamp):
-			lamp.queue_free()
+	for light in _level_lights:
+		if is_instance_valid(light):
+			light.queue_free()
 	_level_lights.clear()
 	for lamp: Dictionary in descriptor.get("lights", []):
 		var light := LightSource3D.new()
@@ -122,19 +137,18 @@ func _spawn_lights(descriptor: Dictionary) -> void:
 		light.position = Vector3(p.x, 0.0, p.y)
 		light.light_radius = lamp["radius"]
 		light.light_intensity = lamp["intensity"]
-		light.set_meta("visual_offset", 60.0)
 		add_child(light)
 		if stealth != null:
 			stealth.register_light(light)
 		_level_lights.append(light)
 	for ml: Dictionary in descriptor.get("moving_lights", []):
 		var moving := MovingLight3D.new()
-		moving.light_radius = ml["radius"]
-		moving.light_intensity = ml["intensity"]
 		var a: Vector2 = ml["a"]
 		var b: Vector2 = ml["b"]
 		moving.point_a = Vector3(a.x, 0.0, a.y)
 		moving.point_b = Vector3(b.x, 0.0, b.y)
+		moving.light_radius = ml["radius"]
+		moving.light_intensity = ml["intensity"]
 		moving.speed = ml["speed"]
 		add_child(moving)
 		if stealth != null:
@@ -142,14 +156,12 @@ func _spawn_lights(descriptor: Dictionary) -> void:
 		_level_lights.append(moving)
 
 
-# ------------------------------------------------------- Phase 3D-4: guards ---
+# ------------------------------------------------------------------- guards ---
 
-## Spawns one Enemy3D per '5' marker with a deterministic BFS + straight
-## line-of-sight patrol route on the XZ grid (no randomness, no physics).
 func _spawn_enemies() -> void:
-	for e in _enemies:
-		if is_instance_valid(e):
-			e.queue_free()
+	for enemy in _enemies:
+		if is_instance_valid(enemy):
+			enemy.queue_free()
 	_enemies.clear()
 	var spawns: Array = level_data.get("enemy_spawns", [])
 	for i in range(spawns.size()):
@@ -164,63 +176,213 @@ func _spawn_enemies() -> void:
 		_enemies.append(enemy)
 
 
-func enemies() -> Array:
-	return _enemies
-
-
-## Deterministic patrol route: BFS over open XZ cells (4 steps), then up to
-## four waypoints chosen farthest-first and filtered by straight-line grid
-## line of sight (walls block, doors are passable cells).
+## Deterministic BFS expansion (4 steps) + straight-line grid LOS filter.
 func _build_patrol_route(spawn_world: Vector3) -> Array:
-	var cell_size: float = level_data["cell_size"]
-	var start: Vector2i = Vector2i(int(spawn_world.x / cell_size), int(spawn_world.z / cell_size))
-	var walls: Dictionary = level_data["wall_cells"]
-	var open_cells: Array[Vector2i] = []
+	var route: Array = []
+	var start := Vector2i(int(spawn_world.x / CELL_3D), int(spawn_world.z / CELL_3D))
+	var walls: Dictionary = level_data.get("wall_cells", {})
+	var frontier: Array = [start]
 	var seen: Dictionary = {start: true}
-	var frontier: Array[Vector2i] = [start]
-	for step in range(4):
-		var next: Array[Vector2i] = []
-		for cell: Vector2i in frontier:
-			for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-				var nc: Vector2i = cell + d
-				if seen.has(nc) or walls.has(nc):
-					continue
-				seen[nc] = true
-				open_cells.append(nc)
-				next.append(nc)
-		frontier = next
-	var route: Array[Vector3] = [spawn_world]
-	var current: Vector2i = start
-	var used: Dictionary = {start: true}
-	while route.size() < 4 and open_cells.size() > 0:
-		var best_cell: Vector2i = Vector2i(-9999, -9999)
-		var best_dist: float = -1.0
-		for candidate: Vector2i in open_cells:
-			if used.has(candidate):
-				continue
-			if not _grid_los(current, candidate, walls):
-				continue
-			var dist: float = Vector2(candidate - current).length()
-			if dist > best_dist:
-				best_dist = dist
-				best_cell = candidate
-		if best_cell.x == -9999:
-			break
-		used[best_cell] = true
-		current = best_cell
-		route.append(Vector3((best_cell.x + 0.5) * cell_size, spawn_world.y, (best_cell.y + 0.5) * cell_size))
+	while frontier.size() > 0 and route.size() < 4:
+		var cell: Vector2i = frontier.pop_front()
+		if _grid_los(start, cell, walls):
+			route.append(level_root.cell_to_world(cell))
+		for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var n: Vector2i = cell + d
+			if not seen.has(n) and not walls.has(n):
+				seen[n] = true
+				frontier.append(n)
+	if route.is_empty():
+		route.append(spawn_world)
 	return route
 
 
-## Grid line-of-sight: samples the segment in quarter-cell steps.
 func _grid_los(a: Vector2i, b: Vector2i, walls: Dictionary) -> bool:
-	var delta: Vector2 = Vector2(b - a)
-	var steps: int = int(maxf(absf(delta.x), absf(delta.y)) * 4.0)
+	var steps: int = maxi(absi(b.x - a.x), absi(b.y - a.y)) * 2
 	if steps == 0:
 		return true
-	for i in range(1, steps):
+	for i in range(steps + 1):
 		var t: float = float(i) / float(steps)
-		var cell: Vector2i = Vector2i(int(round(a.x + delta.x * t)), int(round(a.y + delta.y * t)))
+		var cell := Vector2i(int(round(lerpf(a.x, b.x, t))), int(round(lerpf(a.y, b.y, t))))
 		if walls.has(cell):
 			return false
 	return true
+
+
+# ---------------------------------------------------------- mission objects ---
+
+func _spawn_mission_objects() -> void:
+	for t in terminals:
+		if is_instance_valid(t):
+			t.queue_free()
+	for d in doors:
+		if is_instance_valid(d):
+			d.queue_free()
+	if extraction != null and is_instance_valid(extraction):
+		extraction.queue_free()
+	terminals.clear()
+	doors.clear()
+	extraction = null
+
+	var terminal_positions: Array = level_data.get("terminals", [])
+	for i in range(terminal_positions.size()):
+		var term: Node3D = load("res://scenes/terminal3d.tscn").instantiate()
+		term.name = "Terminal3D%d" % (i + 1)
+		add_child(term)
+		term.global_position = terminal_positions[i]
+		term.set_terminal_id(StringName("terminal_%d" % (i + 1)))
+		term.completed.connect(_on_terminal_completed)
+		terminals.append(term)
+
+	var door_cells: Dictionary = level_data.get("door_cells", {})
+	var door_keys: Array = door_cells.keys()
+	door_keys.sort_custom(func(x, y): return (x.x * 1000 + x.y) < (y.x * 1000 + y.y))
+	for cell: Vector2i in door_keys:
+		var door: Node3D = load("res://scenes/door3d.tscn").instantiate()
+		door.name = "Door3D_%d_%d" % [cell.x, cell.y]
+		add_child(door)
+		door.global_position = level_root.cell_to_world(cell)
+		door.set_cell(cell)
+		if stealth != null:
+			stealth.register_door(door)
+		doors.append(door)
+
+	var ex_pos: Vector3 = level_data.get("extraction", Vector3.ZERO)
+	if ex_pos != Vector3.ZERO:
+		var beacon: Node3D = load("res://scenes/extraction3d.tscn").instantiate()
+		beacon.name = "Extraction3D"
+		add_child(beacon)
+		beacon.global_position = ex_pos
+		beacon.set_active(false)
+		extraction = beacon
+
+
+func _start_mission() -> void:
+	if mission == null:
+		return
+	var payload: Dictionary = {
+		"label": current_layout,
+		"terminals": terminals,
+		"extraction": extraction.global_position if extraction != null else null,
+	}
+	mission.start_mission(payload, level_data.get("zones", []))
+
+
+# -------------------------------------------------------------- interaction ---
+
+func _on_interact() -> void:
+	var target: Node3D = find_interactable()
+	if target == null:
+		return
+	if target is Terminal3D:
+		(target as Terminal3D).complete()
+	elif target is Door3D:
+		(target as Door3D).toggle()
+	# Extraction success is proximity-driven by MissionManager, not a button.
+
+
+## Nearest valid interaction target: 3D distance + raycast LOS on the world
+## layer (walls and closed doors block). A closed door wins exact ties.
+func find_interactable() -> Node3D:
+	var eye: Vector3 = player.global_position + Vector3(0.0, EYE_HEIGHT, 0.0)
+	var best: Node3D = null
+	var best_dist: float = INF
+	var best_is_door: bool = false
+	var candidates: Array = []
+	for t in terminals:
+		if is_instance_valid(t) and not t.is_completed():
+			candidates.append([t, false])
+	for d in doors:
+		if is_instance_valid(d) and not d.is_open():
+			candidates.append([d, true])
+	if extraction != null and is_instance_valid(extraction) and mission != null and mission.extraction_available():
+		candidates.append([extraction, false])
+	for entry: Array in candidates:
+		var node: Node3D = entry[0]
+		var is_door: bool = entry[1]
+		var aim: Vector3 = node.global_position + Vector3(0.0, 60.0, 0.0)
+		if node.has_method("interaction_position"):
+			aim = node.interaction_position()
+		var dist: float = player.global_position.distance_to(aim)
+		if dist > INTERACT_RADIUS:
+			continue
+		if not _los_clear(eye, aim, node):
+			continue
+		var better: bool = dist < best_dist - 0.001
+		var tie: bool = absf(dist - best_dist) <= 0.001
+		if better or (tie and is_door and not best_is_door):
+			best = node
+			best_dist = dist
+			best_is_door = is_door
+	return best
+
+
+func _los_clear(eye: Vector3, aim: Vector3, target: Node) -> bool:
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(eye, aim, 1)
+	query.exclude = [player.get_rid()]
+	var hit: Dictionary = space.intersect_ray(query)
+	if hit.is_empty():
+		return true
+	return hit.get("collider") == target
+
+
+# ------------------------------------------------------------ mission events ---
+
+func _on_terminal_completed(terminal_id: StringName) -> void:
+	if mission != null:
+		mission.on_terminal_completed(terminal_id)
+
+
+func _on_objective_progress(done_count: int, total_count: int) -> void:
+	pass  # HUD reads the live values each frame
+
+
+func _on_extraction_availability(available: bool) -> void:
+	if extraction != null and is_instance_valid(extraction):
+		extraction.set_active(available)
+
+
+func _on_mission_state_changed(from_state: int, to_state: int) -> void:
+	if to_state == MissionManager.State.SUCCEEDED and extraction != null and is_instance_valid(extraction):
+		extraction.set_completed()
+
+
+func _on_mission_succeeded() -> void:
+	pass
+
+
+func _on_mission_failed(_reason: String) -> void:
+	pass
+
+
+# --------------------------------------------------------------------- HUD ---
+
+func _process(delta: float) -> void:
+	if mission != null and level_data.size() > 0:
+		mission.update(delta, player.global_position, _enemies,
+			level_data.get("zones", []), CELL_3D, Vector3.ZERO)
+	if _hud == null or player == null:
+		return
+	var objectives: String = "0/0"
+	var extraction_text: String = "LOCKED"
+	var state_text: String = "READY"
+	if mission != null:
+		objectives = "%d/%d" % [mission.objectives_done(), mission.objectives_total()]
+		extraction_text = "READY" if mission.extraction_available() else "LOCKED"
+		match mission.state:
+			MissionManager.State.ACTIVE:
+				state_text = "ACTIVE"
+			MissionManager.State.SUCCEEDED:
+				state_text = "SUCCEEDED"
+			MissionManager.State.FAILED:
+				state_text = "FAILED"
+	var rig := player.get_node_or_null("CameraRig")
+	var yaw_text: String = "0"
+	if rig != null and rig.has_method("get_yaw"):
+		yaw_text = str(snappedf(rad_to_deg(rig.get_yaw()), 1.0))
+	_hud.text = "3D %s | FPS %d | yaw %s | VIS %.0f%% | OBJ %s | EXT %s | %s | DET %.0f%%" % [
+		current_layout.to_upper(), Engine.get_frames_per_second(), yaw_text,
+		player.visibility * 100.0, objectives, extraction_text, state_text,
+		(mission.detection_ratio() * 100.0) if mission != null else 0.0,
+	]

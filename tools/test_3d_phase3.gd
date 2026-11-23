@@ -35,6 +35,23 @@ func _close(a: float, b: float) -> bool:
 	return d <= TOLERANCE
 
 
+## Deterministic noise-phase setup: camera yaw zeroed so the override input
+## maps to world axes, player parked at the head of the long west column
+## (LEGACY column x=1 is clear from row 1 to row 14) with a clean timer.
+func _reset_noise_phase(main, player) -> void:
+	var rig = player.get_node_or_null("CameraRig")
+	if rig != null:
+		rig.yaw = 0.0
+		rig.pitch = -0.30
+		if rig.has_method("apply_rotation"):
+			rig.apply_rotation()
+	player.global_position = main.level_root.cell_to_world(Vector2i(1, 13))
+	player.velocity = Vector3.ZERO
+	player._noise_timer = 0.0
+	player.use_input_override = true
+	player.input_override = Vector2(0, -1)
+
+
 func _run() -> void:
 	print("3D PHASE-3 TEST: starting")
 	await process_frame
@@ -198,9 +215,7 @@ func _run() -> void:
 		"live visibility stays inside 0..1 (%.3f)" % player.visibility)
 
 	seen.clear()
-	player.global_position = main.level_root.cell_to_world(Vector2i(6, 13))
-	player.velocity = Vector3.ZERO
-	player._noise_timer = 0.0
+	_reset_noise_phase(main, player)
 	player.set_touch_crouch(true)
 	for i in range(30):
 		await physics_frame
@@ -208,9 +223,7 @@ func _run() -> void:
 		"crouched noise radius is exactly 90 (%.1f)" % (seen[0].radius if seen.size() > 0 else -1.0))
 
 	seen.clear()
-	player.global_position = main.level_root.cell_to_world(Vector2i(6, 13))
-	player.velocity = Vector3.ZERO
-	player._noise_timer = 0.0
+	_reset_noise_phase(main, player)
 	player.set_touch_crouch(false)
 	player.set_touch_sprint(true)
 	for i in range(30):

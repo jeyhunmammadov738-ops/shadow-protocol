@@ -52,7 +52,10 @@ var state: int = State.READY
 var detection_grace: float = 3.0  # configurable; seconds of sustained contact
 var detection_timer: float = 0.0
 var current_zone: StringName = &""
-var extraction_position: Vector2 = Vector2(-99999.0, -99999.0)
+var extraction_position: Variant = Vector2(-99999.0, -99999.0)
+## Optional zone lookup override (3D): Callable(pos) -> StringName.
+## When unset the 2D LevelCatalog.zone_at path is used, unchanged.
+var zone_provider: Callable = Callable()
 var mission_active_layout_label: String = ""
 
 var _required: Array[StringName] = []
@@ -82,7 +85,7 @@ func start_mission(level_data: Dictionary, zones: Array) -> void:
 
 	var terminals: Array = level_data.get("terminals", [])
 	var extraction: Variant = level_data.get("extraction", null)
-	if extraction == null or not (extraction is Vector2):
+	if extraction == null or not (extraction is Vector2 or extraction is Vector3):
 		_invalid_reason = "missing extraction point"
 		mission_rejected.emit(_invalid_reason)
 		return
@@ -136,21 +139,26 @@ func invalid_reason() -> String:
 
 ## Per-frame mission update. [param enemies] is Main's live enemy list;
 ## freed enemies are skipped safely.
-func update(delta: float, player_pos: Vector2, enemies: Array, zones: Array, cell_size: float, origin: Vector2) -> void:
+func update(delta: float, player_pos: Variant, enemies: Array, zones: Array, cell_size: float, origin: Variant = Vector2.ZERO) -> void:
 	if state != State.ACTIVE:
 		return
 
 	# Restricted-zone tracking: deterministic membership query, one
 	# notification per zone change (never repeated per frame).
-	var zone: StringName = LevelCatalog.zone_at(zones, player_pos, cell_size, origin)
+	var zone: StringName = &""
+	if zone_provider.is_valid():
+		zone = StringName(str(zone_provider.call(player_pos)))
+	else:
+		zone = LevelCatalog.zone_at(zones, player_pos, cell_size, origin)
 	if zone != current_zone:
 		current_zone = zone
 		restricted_zone_changed.emit(zone)
 
 	# Detection pressure: only genuine current visual contact counts.
+	# Duck-typed so the SAME manager serves the 2D Enemy and the 3D Enemy3D.
 	var genuinely_seen: bool = false
 	for enemy in enemies:
-		if is_instance_valid(enemy) and (enemy is Enemy) and enemy.can_see_player():
+		if is_instance_valid(enemy) and enemy.has_method("can_see_player") and enemy.can_see_player():
 			genuinely_seen = true
 			break
 	if genuinely_seen:
@@ -172,7 +180,7 @@ func update(delta: float, player_pos: Vector2, enemies: Array, zones: Array, cel
 
 	# Extraction: only after all objectives, only by actually being
 	# inside the extraction region.
-	if _extraction_available and player_pos.distance_to(extraction_position) <= EXTRACTION_RADIUS:
+	if _extraction_available and _distance(player_pos, extraction_position) <= EXTRACTION_RADIUS:
 		_set_state(State.SUCCEEDED)
 		mission_succeeded.emit()
 
@@ -197,3 +205,13 @@ func _set_state(new_state: int) -> void:
 	var old: int = state
 	state = new_state
 	mission_state_changed.emit(old, new_state)
+
+
+## Distance between two gameplay positions of either dimensionality
+## (Vector2 for the 2D prototype, Vector3 for the 3D scene).
+func _distance(a: Variant, b: Variant) -> float:
+	if a is Vector3 and b is Vector3:
+		return (a as Vector3).distance_to(b as Vector3)
+	if a is Vector2 and b is Vector2:
+		return (a as Vector2).distance_to(b as Vector2)
+	return INF

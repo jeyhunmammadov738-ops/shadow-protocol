@@ -1,0 +1,35 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/extraction3d.gd" id="1_x"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_beam"]
+top_radius = 18.0
+bottom_radius = 26.0
+height = 140.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_beam"]
+albedo_color = Color(0.35, 0.4, 0.45, 1)
+emission_enabled = true
+emission = Color(0.2, 0.25, 0.3, 1)
+emission_energy_multiplier = 0.25
+
+[sub_resource type="BoxMesh" id="BoxMesh_pad"]
+size = Vector3(60, 4, 60)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pad"]
+albedo_color = Color(0.2, 0.24, 0.3, 1)
+
+[node name="Extraction3D" type="Node3D"]
+script = ExtResource("1_x")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Pad" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+mesh = SubResource("BoxMesh_pad")
+material_override = SubResource("StandardMaterial3D_pad")
+
+[node name="Beam" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 72, 0)
+mesh = SubResource("CylinderMesh_beam")
+material_override = SubResource("StandardMaterial3D_beam")

@@ -1105,3 +1105,24 @@ AI decision cost 0.003 ms, 240-frame 8-enemy loop 4.0 s with no stalls),
 phase-3 20/20, phase-2 50/50, phase-1 33/33, 2D smoke 297/297, host
 checks 74/74, import/boot/validate exit 0. The 30-task acceptance
 roadmap remains unchanged (8 phases, 30/30).
+
+## 3D Conversion Programme Note (2026-11-23, Phase 3D-5)
+
+Mission objects + interaction COMPLETE. New files: scenes/terminal3d.tscn,
+door3d.tscn, extraction3d.tscn with scripts/terminal3d.gd, door3d.gd,
+extraction3d.gd (procedural primitives, zero external assets). Doors are
+closed by default on the world layer (blocking movement AND enemy LOS),
+toggle with deferred collision updates and notify StealthSystem3D
+navigation via get_cell()/is_open(). Terminals spawn at '3' cells with
+stable ids terminal_N and reject duplicate completion. Extraction beacon
+reflects LOCKED/ACTIVE/DONE. MissionManager is now dimension-agnostic
+(Variant positions + zone_provider) so the SAME state machine serves 2D
+and 3D: restricted-zone 2x pressure, 3 s detection grace, extraction
+unlock and success rules unchanged. Main3D owns the mission, resolves
+interaction (nearest target, wall-LOS, radius) and rebuilds mission
+objects cleanly on every layout reload.
+Tests: 3D phase-5 49/49 (door LOS/layer/navigation, duplicate guards,
+visual states, 1x vs 2x timer, reset, grace failure, interaction
+priority, restart cleanliness, four layouts), phase-4 32/32, phase-3
+20/20, phase-2 50/50, phase-1 33/33, 2D smoke 297/297, host 89/89,
+import/boot/validate exit 0. 30-task acceptance roadmap unchanged.

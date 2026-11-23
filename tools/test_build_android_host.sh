@@ -157,5 +157,18 @@ grep -q "noise_emitted" "$ROOT/scripts/enemy3d.gd" && ok "enemy3d subscribes to 
 grep -q "res://tools/test_3d_phase4.gd" "$ROOT/tools/validate_project.sh" && ok "phase-4 test wired into validation" || bad "phase-4 test not wired"
 grep -q '\[node name="Enemy" type="CharacterBody2D"\]' "$ROOT/scenes/enemy.tscn" && ok "2D enemy.tscn untouched (CharacterBody2D)" || bad "2D enemy.tscn altered"
 
+# --- Phase 3D-5 (mission objects + interaction) ---
+for f in scenes/terminal3d.tscn scenes/door3d.tscn scenes/extraction3d.tscn scripts/terminal3d.gd scripts/door3d.gd scripts/extraction3d.gd tools/test_3d_phase5.gd; do
+  [ -f "$ROOT/$f" ] && ok "$(basename "$f") exists" || bad "$(basename "$f") missing"
+done
+grep -q "WORLD_LAYER" "$ROOT/scripts/door3d.gd" && ok "doors use the world collision layer" || bad "door layer missing"
+grep -q "set_deferred(\"collision_layer\"" "$ROOT/scripts/door3d.gd" && ok "door collision updates are deferred (physics-safe)" || bad "door collision not deferred"
+grep -q "terminal_%d" "$ROOT/scripts/main3d.gd" && ok "terminals get stable ids in main3d" || bad "stable terminal ids missing"
+grep -q "MissionManager.new()" "$ROOT/scripts/main3d.gd" && ok "main3d owns a MissionManager" || bad "MissionManager not wired in main3d"
+grep -q "zone_provider" "$ROOT/scripts/main3d.gd" && ok "main3d supplies the 3D zone provider" || bad "zone provider missing"
+grep -q "find_interactable" "$ROOT/scripts/main3d.gd" && ok "interaction resolver present" || bad "interaction resolver missing"
+grep -q "test_3d_phase5.gd" "$ROOT/tools/validate_project.sh" && ok "phase-5 test wired into validation" || bad "phase-5 test not wired"
+[ -f "$ROOT/scenes/main.tscn" ] && grep -q 'type="Node2D"' "$ROOT/scenes/main.tscn" && ok "2D main.tscn untouched" || bad "2D main.tscn altered"
+
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

@@ -191,9 +191,9 @@ grep -q "test_3d_phase6.gd" "$ROOT/tools/validate_project.sh" && ok "phase-6 tes
 [ -f "$ROOT/tools/benchmark_3d.gd" ] && ok "benchmark_3d.gd exists" || bad "benchmark_3d.gd missing"
 grep -q "res://scenes/main3d.tscn" "$ROOT/project.godot" && ok "default main scene is the 3D scene" || bad "main scene not switched to 3D"
 [ -f "$ROOT/scenes/main.tscn" ] && ok "2D main.tscn still present" || bad "2D main.tscn missing"
-grep -q 'config/version="0.2.1"' "$ROOT/project.godot" && ok "project version metadata is 0.2.1" || bad "project version not 0.2.1"
-grep -q "^version/code=3" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 3" || bad "versionCode not 3"
-grep -q '^version/name="0.2.1"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.2.1" || bad "versionName not 0.2.1"
+grep -q 'config/version="0.3.0"' "$ROOT/project.godot" && ok "project version metadata is 0.3.0" || bad "project version not 0.3.0"
+grep -q "^version/code=4" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 4" || bad "versionCode not 4"
+grep -q '^version/name="0.3.0"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.3.0" || bad "versionName not 0.3.0"
 grep -q 'package/unique_name="com.shadowprotocol.game"' "$ROOT/export_presets.cfg" && ok "package name preserved" || bad "package name changed"
 grep -q "arm64-v8a=true" "$ROOT/export_presets.cfg" && ok "arm64-v8a target preserved" || bad "arm64-v8a target lost"
 grep -q "benchmark_3d.gd" "$ROOT/tools/validate_project.sh" && ok "3D benchmark wired into validation" || bad "benchmark not wired"
@@ -206,5 +206,18 @@ grep -q "func to_canvas" "$ROOT/scripts/mobile_controls.gd" && ok "touch positio
 grep -q "func _face_open_corridor" "$ROOT/scripts/main3d.gd" && ok "spawn faces the open corridor" || bad "spawn orientation fix missing"
 grep -q "BLOCKED_PITCH" "$ROOT/scripts/camera_rig.gd" && ok "camera lifts over obstruction instead of collapsing" || bad "camera lift-over missing"
 grep -q "test_3d_touch.gd" "$ROOT/tools/validate_project.sh" && ok "touch regression wired into validation" || bad "touch regression not wired"
+# --- Phase 3D-8 (visual quality, camera, feel) ---
+for f in scripts/character_rig.gd tools/test_3d_phase8.gd; do
+  [ -f "$ROOT/$f" ] && ok "3D-8 file present: $f" || bad "3D-8 file missing: $f"
+done
+grep -q "WALL_HEIGHT: float = 92.0" "$ROOT/scripts/grid_cell_library.gd" && ok "tactical wall height 92" || bad "wall height not tuned"
+grep -q "ITEM_FLOOR_SEAM" "$ROOT/scripts/grid_cell_library.gd" && ok "floor grid seams + wall trim items exist" || bad "detail items missing"
+grep -q "DetailGrid" "$ROOT/scripts/level_generator_3d.gd" && ok "detail GridMap layer wired" || bad "detail layer missing"
+grep -q "YAW_DAMPING" "$ROOT/scripts/camera_rig.gd" && ok "camera yaw/pitch damping" || bad "camera damping missing"
+grep -q "FOV_SPRINT" "$ROOT/scripts/camera_rig.gd" && ok "movement FOV follow" || bad "FOV follow missing"
+grep -q "CharacterRig.build_player" "$ROOT/scripts/player3d.gd" && ok "player procedural rig" || bad "player rig missing"
+grep -q "CharacterRig.build_guard" "$ROOT/scripts/enemy3d.gd" && ok "guard procedural rig" || bad "guard rig missing"
+grep -q "test_3d_phase8.gd" "$ROOT/tools/validate_project.sh" && ok "phase-8 wired into validation" || bad "phase-8 not wired"
+
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

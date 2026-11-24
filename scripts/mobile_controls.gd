@@ -15,7 +15,7 @@ signal sprint_toggled(active: bool)
 signal interact_pressed()
 
 const JOYSTICK_MAX_RADIUS: float = 110.0
-const JOYSTICK_DEAD_ZONE: float = 0.15
+const JOYSTICK_DEAD_ZONE: float = 0.12
 const JOYSTICK_ZONE_WIDTH_RATIO: float = 0.45
 const BUTTON_RADIUS: float = 42.0
 const INTERACT_RADIUS: float = 52.0
@@ -205,6 +205,9 @@ func _update_joystick(pos: Vector2) -> void:
 	else:
 		# Rescale above the dead zone so low magnitudes are not lost.
 		var scaled: float = (magnitude - JOYSTICK_DEAD_ZONE) / (1.0 - JOYSTICK_DEAD_ZONE)
+		# Gentle response curve: small tilts register, large tilts stay linear
+		# so steering feels immediate instead of floaty.
+		scaled = pow(scaled, 0.85)
 		_joystick_vector = normalized.normalized() * scaled
 	queue_redraw()
 

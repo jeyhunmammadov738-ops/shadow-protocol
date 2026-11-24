@@ -145,8 +145,10 @@ func _draw_discipline() -> void:
 			meshes += 1
 		stack.append_array(n.get_children())
 	print("3D BENCH: gridmaps=%d mesh-instances=%d" % [grids, meshes])
-	_check(grids == 1, "level renders through a single GridMap (%d)" % grids)
-	_check(meshes < 220, "mesh instances stay within budget (%d < 220)" % meshes)
+	# 3D-8 adds one collision-free detail layer (seams, baseboards, caps),
+	# so the budget is two GridMaps instead of one.
+	_check(grids == 2, "level renders through two GridMaps (%d)" % grids)
+	_check(meshes < 300, "mesh instances stay within budget (%d < 300)" % meshes)
 	_check(_main.enemies().size() > 0, "stress scenario left live guards for the audit")
 
 

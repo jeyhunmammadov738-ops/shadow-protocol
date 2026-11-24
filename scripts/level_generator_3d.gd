@@ -9,7 +9,7 @@ extends Node3D
 ## parity with the 2D layouts can be asserted by tests.
 
 const CELL: float = 48.0
-const WALL_HEIGHT: float = 120.0
+const WALL_HEIGHT: float = 92.0
 
 const COLOR_TERMINAL := Color(0.98, 0.72, 0.28)
 const COLOR_SPAWN := Color(0.45, 0.95, 1.0)
@@ -20,6 +20,7 @@ const COLOR_ZONE := Color(0.90, 0.62, 0.20)
 
 var grid_size: Vector2i = Vector2i.ZERO
 var cell_size: float = CELL
+var detail: GridMap = null
 var origin: Vector3 = Vector3.ZERO
 var bounds: AABB = AABB()
 var wall_cells: Dictionary = {}
@@ -66,6 +67,17 @@ func generate(rows: Array, zones: Array = []) -> Dictionary:
 	grid.collision_layer = 1
 	grid.collision_mask = 0
 	add_child(grid)
+	# Detail layer: grid seams on walkable cells, baseboard + cap on walls.
+	# Same MeshLibrary, collision_layer 0, so it costs two draw calls and
+	# never affects movement or line of sight.
+	detail = GridMap.new()
+	detail.name = "DetailGrid"
+	detail.mesh_library = grid.mesh_library
+	detail.cell_size = Vector3(CELL, CELL, CELL)
+	detail.position = grid.position
+	detail.collision_layer = 0
+	detail.collision_mask = 0
+	add_child(detail)
 
 	for gy in range(height):
 		var row: String = rows[gy]
@@ -117,6 +129,14 @@ func generate(rows: Array, zones: Array = []) -> Dictionary:
 					counts["wall"] += 1
 					wall_cells[cell] = true
 			grid.set_cell_item(Vector3i(gx, 0, gy), item)
+			var detail_item: int = -1
+			if wall_cells.has(Vector2i(gx, gy)):
+				detail_item = GridCellLibrary.ITEM_WALL_CAP
+				detail.set_cell_item(Vector3i(gx, 0, gy), GridCellLibrary.ITEM_WALL_BASE)
+			else:
+				detail_item = GridCellLibrary.ITEM_FLOOR_SEAM
+			if detail_item >= 0:
+				detail.set_cell_item(Vector3i(gx, 0, gy), detail_item)
 
 	for zone in zones:
 		_add_zone_plate(zone)
@@ -189,6 +209,9 @@ func _add_zone_plate(zone: Dictionary) -> void:
 
 
 func _clear() -> void:
+	if detail != null and is_instance_valid(detail):
+		detail.queue_free()
+	detail = null
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()

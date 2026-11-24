@@ -93,7 +93,10 @@ func dynamic_light_at(world_pos: Vector3) -> float:
 	if bench_enabled:
 		bench_light_queries += 1
 	var total: float = 0.0
-	for light: Node in _lights:
+	for light in _lights:
+		# Layout reloads free the light nodes before the array is cleared.
+		if not is_instance_valid(light):
+			continue
 		total += light.contribution_at(world_pos)
 	return clampf(total, 0.0, 1.0)
 

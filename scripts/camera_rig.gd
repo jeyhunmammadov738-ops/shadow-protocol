@@ -21,6 +21,12 @@ const TOUCH_YAW_SENSITIVITY: float = 0.008
 const TOUCH_PITCH_SENSITIVITY: float = 0.008
 const SPRING_LENGTH: float = 170.0
 const SHOULDER_OFFSET: float = 26.0
+const MIN_CAM_DISTANCE: float = 58.0
+const YAW_DAMPING: float = 14.0
+const PITCH_DAMPING: float = 12.0
+const FOV_BASE: float = 68.0
+const FOV_SPRINT: float = 77.0
+const FOV_DAMPING: float = 5.0
 const BLOCKED_PITCH: float = -0.95
 const BLOCKED_RATIO: float = 0.9
 const SPRING_MARGIN: float = 8.0
@@ -32,6 +38,9 @@ var pitch: float = -0.26
 ## spring arm is compressed, so a wall behind the player never leaves a
 ## collapsed, unusable view (device report: spawn camera against a wall).
 var _effective_pitch: float = -0.26
+var _yaw_smooth: float = 0.0
+var _pitch_smooth: float = -0.26
+var _fov: float = 68.0
 
 @export var touch_layer_path: NodePath = NodePath("../../UI/TouchLayer")
 
@@ -39,6 +48,7 @@ var _touch_layer: Control = null
 var _touch_index: int = -1
 var _last_touch_pos: Vector2 = Vector2.ZERO
 var _mouse_dragging: bool = false
+var _target_sprinting: bool = false
 
 @onready var _spring: SpringArm3D = $SpringArm3D
 
@@ -47,7 +57,8 @@ func _ready() -> void:
 	_touch_layer = get_node_or_null(touch_layer_path) as Control
 	if _spring != null:
 		_spring.spring_length = SPRING_LENGTH
-		_spring.margin = SPRING_MARGIN
+		# Tighter margin keeps the camera off walls without a visible pop.
+		_spring.margin = 4.0
 		_spring.collision_mask = 1
 		var body := get_parent() as CollisionObject3D
 		if body != null:
@@ -58,6 +69,18 @@ func _ready() -> void:
 	if cam != null:
 		cam.position.x = SHOULDER_OFFSET
 	apply_rotation()
+
+
+## Sprint drives the subtle FOV widen.
+func set_sprinting(active: bool) -> void:
+	_target_sprinting = active
+
+
+## True when the arm is so compressed the camera would sit in the head.
+func is_framing_tight() -> bool:
+	if _spring == null:
+		return false
+	return _spring.get_hit_length() < MIN_CAM_DISTANCE
 
 
 func get_yaw() -> float:
@@ -76,7 +99,17 @@ func _process(delta: float) -> void:
 	var hit: float = _spring.get_hit_length()
 	var target: float = BLOCKED_PITCH if hit < SPRING_LENGTH * BLOCKED_RATIO else pitch
 	_effective_pitch = lerpf(_effective_pitch, target, minf(1.0, 8.0 * delta))
-	_spring.rotation.x = _effective_pitch
+	# Damped yaw/pitch: steering feels fluid instead of snapping.
+	_yaw_smooth = lerp_angle(_yaw_smooth, yaw, minf(1.0, YAW_DAMPING * delta))
+	_pitch_smooth = lerpf(_pitch_smooth, _effective_pitch, minf(1.0, PITCH_DAMPING * delta))
+	rotation.y = _yaw_smooth
+	_spring.rotation.x = _pitch_smooth
+	# Subtle speed FOV so movement reads clearly without a dolly zoom.
+	var want_fov: float = FOV_SPRINT if _target_sprinting else FOV_BASE
+	_fov = lerpf(_fov, want_fov, minf(1.0, FOV_DAMPING * delta))
+	var cam := _spring.get_node_or_null("Camera3D") as Camera3D
+	if cam != null and absf(cam.fov - _fov) > 0.01:
+		cam.fov = _fov
 
 
 func apply_rotation() -> void:

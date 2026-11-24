@@ -1194,3 +1194,26 @@ Wired into validate_project.sh (13 steps). Gates: touch 24/24, phase-6
 phase-1 33/33, 2D smoke 297/297, benchmark 14/14, host 113/113, validate
 exit 0. Version 0.2.1 / versionCode 3. 30-task roadmap unchanged (8
 phases, 30/30); 3D programme: 7 phases + 1 hotfix.
+
+## 3D Conversion Programme Note (2026-11-24, Phase 3D-8)
+
+Visual quality upgrade, TPS camera overhaul and movement feel COMPLETE.
+Walls dropped from towering 120 to a tactical 92 units so corridors read
+as spaces, not canyons. Camera: damped yaw/pitch (14/12), tight 4-unit
+spring margin, shoulder offset 26, lift-over pitch when the arm is
+blocked, and a subtle 68 -> 77 FOV widen while sprinting. Characters are
+no longer capsules: scripts/character_rig.gd builds articulated
+procedural rigs from primitives (torso, vest, shoulder pads, hip-pivoted
+legs and arms with stride animation, head) with a glowing tri-focal visor
+for the player and helmet/wide visor/weapon silhouette for guards; guard
+state colours still drive the tint. Environment: a second collision-free
+detail GridMap adds floor grid seams plus wall baseboards and emissive
+top caps (two GridMaps total, 83 mesh instances). Joystick dead zone
+0.12 with a pow(x, 0.85) response curve. Found and fixed a real leak:
+StealthSystem3D.dynamic_light_at iterated freed light nodes after a
+layout reload ("invalid previously freed instance"). Tests: new phase-8
+25/25, touch 24/24, phase-6 38/38, phase-5 49/49, phase-4 32/32, phase-3
+20/20, phase-2 50/50, phase-1 33/33, 2D smoke 297/297, benchmark 14/14,
+host 123/123, validate exit 0 (14 steps). Version 0.3.0 / versionCode 4.
+30-task roadmap unchanged (8 phases, 30/30); 3D programme: 8 phases + 1
+hotfix.

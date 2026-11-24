@@ -53,10 +53,13 @@ var _touch_sprint: bool = false
 
 @onready var _collider: CollisionShape3D = $CollisionShape3D
 @onready var _visual: Node3D = $Visual
+var rig = null  # untyped: avoids freed-instance assignment on restart
 @onready var _camera_rig: Node3D = $CameraRig
 
 
 func _ready() -> void:
+	if _visual != null:
+		rig = CharacterRig.build_player(_visual)
 	_apply_posture(0.0, true)
 
 
@@ -119,6 +122,10 @@ func _physics_process(delta: float) -> void:
 	_update_noise(delta)
 
 	# Face the movement direction (visual only, never the collision body).
+	if rig != null:
+		rig.animate(delta, Vector2(velocity.x, velocity.z).length(), crouching, sprinting)
+	if _camera_rig != null and _camera_rig.has_method("set_sprinting"):
+		_camera_rig.set_sprinting(sprinting and Vector2(velocity.x, velocity.z).length() > 20.0)
 	if desired_dir.length_squared() > 0.0001 and _visual != null:
 		var target_yaw: float = atan2(-desired_dir.x, -desired_dir.z)
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, target_yaw, minf(1.0, TURN_RATE * delta))

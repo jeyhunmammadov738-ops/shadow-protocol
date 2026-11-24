@@ -73,19 +73,25 @@ if [ -x "$ROOT/tools/test_build_android_host.sh" ]; then
   grep -E "3D PHASE-6 TEST:" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-6 test did not pass."; exit 1; }
 
-  echo "[11/13] Running 3D touch regression (simulated Android drag + loop)..."
+  echo "[11/14] Running 3D phase-8 test (visuals, camera overhaul, movement feel)..."
+  "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase8.gd >"$LOG" 2>&1 || {
+    tail -n 60 "$LOG"; echo "ERROR: 3D phase-8 test failed."; exit 1; }
+  grep -q "3D PHASE-8 TEST: all checks passed" "$LOG" || {
+    tail -n 60 "$LOG"; echo "ERROR: 3D phase-8 test did not pass."; exit 1; }
+
+  echo "[12/14] Running 3D touch regression (simulated Android drag + loop)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_touch.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D touch regression failed."; exit 1; }
   grep -q "3D TOUCH TEST: all checks passed" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D touch regression did not pass."; exit 1; }
 
-  echo "[12/13] Running 3D benchmark (scenarios, leaks, draw discipline)..."
+  echo "[13/14] Running 3D benchmark (scenarios, leaks, draw discipline)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/benchmark_3d.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D benchmark failed."; exit 1; }
   grep -q "3D BENCH: all checks passed" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D benchmark did not pass."; exit 1; }
 
-  echo "[13/13] Running Android build host checks..."
+  echo "[14/14] Running Android build host checks..."
   bash "$ROOT/tools/test_build_android_host.sh" || {
     echo "ERROR: Android build host checks failed."; exit 1; }
 fi

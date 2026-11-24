@@ -6,13 +6,16 @@ class_name GridCellLibrary
 ## every GridMap; no external meshes, textures or art assets are used.
 
 const CELL: float = 48.0
-const WALL_HEIGHT: float = 120.0
+const WALL_HEIGHT: float = 92.0
 const FLOOR_THICKNESS: float = 8.0
 
 const ITEM_FLOOR_SHADOW: int = 0
 const ITEM_FLOOR_LIT: int = 1
 const ITEM_WALL_A: int = 2
 const ITEM_WALL_B: int = 3
+const ITEM_FLOOR_SEAM: int = 4
+const ITEM_WALL_BASE: int = 5
+const ITEM_WALL_CAP: int = 6
 
 static var _shared: MeshLibrary = null
 
@@ -34,6 +37,19 @@ static func build() -> MeshLibrary:
 	lib.create_item(ITEM_WALL_B)
 	lib.set_item_name(ITEM_WALL_B, "wall_b")
 	_configure_wall(lib, ITEM_WALL_B, Palette.WALL.lightened(0.08), Palette.WALL_TOP.lightened(0.05))
+	# 3D-8 detail layer: grid seams, baseboards, top caps (no collisions).
+	lib.create_item(ITEM_FLOOR_SEAM)
+	lib.set_item_name(ITEM_FLOOR_SEAM, "floor_seam")
+	_configure_detail(lib, ITEM_FLOOR_SEAM, Vector3(CELL, 1.0, 1.6),
+		Vector3(0.0, 0.6, 0.0), Palette.FLOOR_SEAM, false)
+	lib.create_item(ITEM_WALL_BASE)
+	lib.set_item_name(ITEM_WALL_BASE, "wall_base")
+	_configure_detail(lib, ITEM_WALL_BASE, Vector3(CELL, 6.0, CELL + 2.0),
+		Vector3(0.0, 3.0, 0.0), Palette.WALL_SHADOW.lightened(0.12), false)
+	lib.create_item(ITEM_WALL_CAP)
+	lib.set_item_name(ITEM_WALL_CAP, "wall_cap")
+	_configure_detail(lib, ITEM_WALL_CAP, Vector3(CELL + 3.0, 3.0, CELL + 3.0),
+		Vector3(0.0, WALL_HEIGHT + 1.5, 0.0), Palette.WALL_TOP, true)
 	_shared = lib
 	return lib
 
@@ -57,6 +73,23 @@ static func _configure_floor(lib: MeshLibrary, id: int, albedo: Color,
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(CELL, FLOOR_THICKNESS, CELL)
 	lib.set_item_shapes(id, [shape, offset])
+
+
+## Collision-free trim piece used by the detail GridMap layer.
+static func _configure_detail(lib: MeshLibrary, id: int, size: Vector3,
+		offset: Vector3, color: Color, emissive: bool) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.7
+	if emissive:
+		mat.emission_enabled = true
+		mat.emission = color
+		mat.emission_energy_multiplier = 0.5
+	mesh.material = mat
+	lib.set_item_mesh(id, mesh)
+	lib.set_item_mesh_transform(id, Transform3D(Basis(), offset))
 
 
 static func _configure_wall(lib: MeshLibrary, id: int, albedo: Color,

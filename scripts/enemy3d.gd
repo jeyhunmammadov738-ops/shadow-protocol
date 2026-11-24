@@ -55,6 +55,7 @@ static var bench_vision_rays: int = 0
 
 var decision_ticks: int = 0
 var state: StringName = STATE_PATROL
+var rig = null  # untyped: avoids freed-instance assignment on restart
 var suspicion: float = 0.0
 var facing: Vector3 = Vector3(0, 0, -1)
 var enemy_id: StringName = &"enemy"
@@ -97,6 +98,8 @@ const STATE_GLYPHS: Dictionary = {
 
 
 func _ready() -> void:
+	if rig == null:
+		rig = CharacterRig.build_guard(self)
 	_connect_noise()
 	_update_visual_state()
 
@@ -375,6 +378,7 @@ func _speed_for_state() -> float:
 
 
 func _physics_process(delta: float) -> void:
+	_animate_rig(delta)
 	_state_timer += delta
 	var to_target: Vector3 = _target - global_position
 	to_target.y = 0.0
@@ -403,8 +407,19 @@ func _physics_process(delta: float) -> void:
 		_decide(ai_interval)
 
 
+func _animate_rig(delta: float) -> void:
+	if rig == null:
+		return
+	var speed: float = 0.0 if state == STATE_ALERT and suspicion >= 1.0 else 120.0
+	if state == STATE_PATROL or state == STATE_INVESTIGATING:
+		speed = 110.0
+	rig.animate(delta, speed, false, state == STATE_ALERT)
+
+
 func _update_visual_state() -> void:
 	var state_color: Color = STATE_COLORS.get(state, Color.WHITE)
+	if rig != null:
+		rig.set_state_color(state_color)
 	var body := get_node_or_null("Body") as MeshInstance3D
 	if body != null:
 		var mat := StandardMaterial3D.new()

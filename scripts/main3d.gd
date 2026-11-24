@@ -36,6 +36,9 @@ func _ready() -> void:
 		touch_layer.crouch_toggled.connect(player.set_touch_crouch)
 		touch_layer.sprint_toggled.connect(player.set_touch_sprint)
 		touch_layer.interact_pressed.connect(_on_interact)
+		# DEVICE FIX (0.2.1): without this the joystick vector never reached
+		# Player3D, so the 3D build could not be moved by touch at all.
+		player.set_touch_controls(touch_layer)
 	stealth = StealthSystem3D.new()
 	stealth.name = "StealthSystem3D"
 	add_child(stealth)
@@ -79,6 +82,7 @@ func load_layout(key: String) -> Dictionary:
 	if player != null:
 		player.global_position = level_data["spawn"]
 		player.velocity = Vector3.ZERO
+		_face_open_corridor()
 	_configure_stealth()
 	_spawn_lights(descriptor)
 	_spawn_enemies()
@@ -112,6 +116,51 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 # ------------------------------------------------------------- stealth core ---
+
+## Points the player and the camera down the longest open run from the
+## spawn cell and nudges the body half a cell into it, so the start is not
+## a corner shot into a wall with a collapsed spring arm (device report).
+func _face_open_corridor() -> void:
+	if player == null or level_root == null:
+		return
+	var walls: Dictionary = level_data.get("wall_cells", {})
+	var start: Vector2i = level_root.world_to_cell(player.global_position)
+	var dirs: Array = [Vector3(0, 0, -1), Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)]
+	var best_dir: Vector3 = Vector3(0, 0, -1)
+	var best_run: int = -1
+	var best_back: int = 0
+	for dir: Vector3 in dirs:
+		var run: int = 0
+		for step in range(1, 5):
+			var cell: Vector2i = start + Vector2i(int(dir.x) * step, int(dir.z) * step)
+			if walls.has(cell):
+				break
+			run += 1
+		# Room BEHIND matters too: the spring arm collapses against a wall.
+		var back: int = 0
+		for step in range(1, 4):
+			var cell: Vector2i = start - Vector2i(int(dir.x) * step, int(dir.z) * step)
+			if walls.has(cell):
+				break
+			back += 1
+		var score: int = run * 2 + back
+		if score > best_run:
+			best_run = score
+			best_dir = dir
+			best_back = back
+	if best_run <= 0:
+		return
+	# The body stays exactly on the layout spawn tile (a phase-2 invariant);
+	# the camera solves the tight pocket by lifting over the wall instead.
+	var yaw_value: float = atan2(-best_dir.x, -best_dir.z)
+	player.rotation.y = yaw_value
+	var rig: Node = player.get_node_or_null("CameraRig")
+	if rig != null:
+		rig.yaw = yaw_value
+		rig.pitch = -0.34
+		if rig.has_method("apply_rotation"):
+			rig.apply_rotation()
+
 
 func _configure_stealth() -> void:
 	if stealth == null:
@@ -302,19 +351,20 @@ func find_interactable() -> Node3D:
 	var eye: Vector3 = player.global_position + Vector3(0.0, EYE_HEIGHT, 0.0)
 	var best: Node3D = null
 	var best_dist: float = INF
-	var best_is_door: bool = false
+	var best_prio: int = 99
 	var candidates: Array = []
 	for t in terminals:
 		if is_instance_valid(t) and not t.is_completed():
-			candidates.append([t, false])
+			candidates.append([t, 0])
 	for d in doors:
-		if is_instance_valid(d) and not d.is_open():
-			candidates.append([d, true])
+		if is_instance_valid(d):
+			# Closed doors win ties; an open door can still be closed again.
+			candidates.append([d, 1 if not d.is_open() else 2])
 	if extraction != null and is_instance_valid(extraction) and mission != null and mission.extraction_available():
-		candidates.append([extraction, false])
+		candidates.append([extraction, 0])
 	for entry: Array in candidates:
 		var node: Node3D = entry[0]
-		var is_door: bool = entry[1]
+		var prio: int = entry[1]
 		var aim: Vector3 = node.global_position + Vector3(0.0, 60.0, 0.0)
 		if node.has_method("interaction_position"):
 			aim = node.interaction_position()
@@ -325,10 +375,11 @@ func find_interactable() -> Node3D:
 			continue
 		var better: bool = dist < best_dist - 0.001
 		var tie: bool = absf(dist - best_dist) <= 0.001
-		if better or (tie and is_door and not best_is_door):
+		# Priority: objective/extraction (0) > closed door (1) > open door (2).
+		if better or (tie and prio < best_prio):
 			best = node
 			best_dist = dist
-			best_is_door = is_door
+			best_prio = prio
 	return best
 
 

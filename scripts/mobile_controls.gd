@@ -95,6 +95,13 @@ func _layout_buttons() -> void:
 
 
 ## Current analog movement vector, magnitude in 0..1 (dead zone applied).
+## Centre of a named action button in canvas space (tests and tooling).
+func button_center(name: String) -> Vector2:
+	if _buttons.has(name):
+		return _buttons[name]["center"]
+	return Vector2.ZERO
+
+
 func get_movement_vector() -> Vector2:
 	return _joystick_vector
 
@@ -105,6 +112,7 @@ func get_movement_vector() -> Vector2:
 ## button geometry so the 3D camera rig can never conflict with
 ## SPRINT/CROUCH/USE. Purely additive: no existing behaviour changes.
 func is_position_owned(pos: Vector2) -> bool:
+	pos = to_canvas(pos)
 	for name: String in _buttons:
 		var btn: Dictionary = _buttons[name]
 		if pos.distance_to(btn["center"]) <= btn["radius"]:
@@ -113,16 +121,39 @@ func is_position_owned(pos: Vector2) -> bool:
 	return pos.x <= zone_width
 
 
+## Normalises an incoming touch position into canvas space.
+##
+## Godot applies the stretch transform to canvas items, but on Android the
+## screen events can arrive in window pixels. Without this the joystick
+## zone (a hard cut at 42% of the canvas width) rejects genuine left-half
+## drags on tall 20:9 screens, which is exactly what device testing
+## showed. The check is per event and idempotent: a position already
+## inside the canvas rect is returned untouched.
+func to_canvas(pos: Vector2) -> Vector2:
+	var vp := get_viewport()
+	if vp == null:
+		return pos
+	var rect: Vector2 = vp.get_visible_rect().size
+	if rect.x <= 0.0 or rect.y <= 0.0:
+		return pos
+	if pos.x <= rect.x + 1.0 and pos.y <= rect.y + 1.0:
+		return pos
+	var win: Vector2 = Vector2(DisplayServer.window_get_size())
+	if win.x <= rect.x + 1.0:
+		return pos
+	return Vector2(pos.x * rect.x / win.x, pos.y * rect.y / win.y)
+
+
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
-			_handle_press(event.position, event.index)
+			_handle_press(to_canvas(event.position), event.index)
 		else:
 			_handle_release(event.index)
 	elif event is InputEventScreenDrag and event.index == _joystick_index:
-		_update_joystick(event.position)
+		_update_joystick(to_canvas(event.position))
 
 
 func _handle_press(pos: Vector2, index: int) -> void:
@@ -152,7 +183,10 @@ func _handle_release(index: int) -> void:
 		var name: String = _button_touches[index]
 		_button_touches.erase(index)
 		# Toggles keep their latched state; momentary buttons reset.
-		if name == "interact":
+		if name == "sprint":
+			_buttons[name]["pressed"] = false
+			sprint_toggled.emit(false)
+		elif name == "interact":
 			_buttons[name]["pressed"] = false
 		queue_redraw()
 

@@ -19,12 +19,19 @@ const YAW_SENSITIVITY: float = 0.006
 const PITCH_SENSITIVITY: float = 0.005
 const TOUCH_YAW_SENSITIVITY: float = 0.008
 const TOUCH_PITCH_SENSITIVITY: float = 0.008
-const SPRING_LENGTH: float = 150.0
+const SPRING_LENGTH: float = 170.0
+const SHOULDER_OFFSET: float = 26.0
+const BLOCKED_PITCH: float = -0.95
+const BLOCKED_RATIO: float = 0.9
 const SPRING_MARGIN: float = 8.0
 const FALLBACK_RIGHT_ZONE_RATIO: float = 0.45
 
 var yaw: float = 0.0
-var pitch: float = -0.30
+var pitch: float = -0.26
+## Effective pitch actually applied: rises toward BLOCKED_PITCH when the
+## spring arm is compressed, so a wall behind the player never leaves a
+## collapsed, unusable view (device report: spawn camera against a wall).
+var _effective_pitch: float = -0.26
 
 @export var touch_layer_path: NodePath = NodePath("../../UI/TouchLayer")
 
@@ -45,6 +52,11 @@ func _ready() -> void:
 		var body := get_parent() as CollisionObject3D
 		if body != null:
 			_spring.add_excluded_object(body.get_rid())
+	# Over-the-shoulder framing: the capsule no longer hides the corridor
+	# centre, and the longer spring keeps a playable view even near walls.
+	var cam := _spring.get_node_or_null("Camera3D") as Camera3D
+	if cam != null:
+		cam.position.x = SHOULDER_OFFSET
 	apply_rotation()
 
 
@@ -57,9 +69,20 @@ func get_pitch() -> float:
 
 
 ## Pushes the current yaw/pitch into the node transforms.
+## Lifts the camera over obstruction instead of only shortening the arm.
+func _process(delta: float) -> void:
+	if _spring == null:
+		return
+	var hit: float = _spring.get_hit_length()
+	var target: float = BLOCKED_PITCH if hit < SPRING_LENGTH * BLOCKED_RATIO else pitch
+	_effective_pitch = lerpf(_effective_pitch, target, minf(1.0, 8.0 * delta))
+	_spring.rotation.x = _effective_pitch
+
+
 func apply_rotation() -> void:
 	rotation.y = yaw
 	if _spring != null:
+		_effective_pitch = pitch
 		_spring.rotation.x = pitch
 
 

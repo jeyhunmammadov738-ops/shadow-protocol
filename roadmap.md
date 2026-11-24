@@ -1171,3 +1171,26 @@ docs/ANDROID_DEVICE_ACCEPTANCE.md (D1..D18) is what proves the device
 numbers on the POCO X5 Pro 5G. Signed 0.2.0 APK verified: v2+v3, cert
 74ec3b4e..., debug cert absent, arm64-v8a. 30-task acceptance roadmap
 unchanged (8 phases, 30/30); 3D programme: 7 phases delivered.
+
+## 3D Conversion Programme Note (2026-11-24, hotfix 0.2.1 — device bugs)
+
+On-device report (POCO X5 Pro 5G, 0.2.0) fixed. Root causes: Main3D never
+called player.set_touch_controls(), so the joystick vector never reached
+Player3D (movement impossible on touch); touch positions were compared
+against canvas-space geometry without normalising the Android stretch
+scale, which rejected left-half drags on tall screens. Both fixed, plus
+four further real bugs: the momentary SPRINT button never emitted its
+release signal, an already-open door could not be interacted with again,
+door/terminal interaction priority was not ordered, and the spawn camera
+had no room behind it. Spawn now faces the longest open corridor (body
+stays exactly on the layout spawn tile, a phase-2 invariant) and the
+camera lifts over the blocking wall instead of collapsing. New
+tools/test_3d_touch.gd (24 checks) simulates Android touch end to end via
+Viewport.push_input (Input.parse_input_event does not reach Controls
+headless) and drives the full loop: drag moves Player3D, camera drag,
+SPRINT/CROUCH/USE, door open+close, terminal hack, extraction, restart.
+Wired into validate_project.sh (13 steps). Gates: touch 24/24, phase-6
+38/38, phase-5 49/49, phase-4 32/32, phase-3 20/20, phase-2 50/50,
+phase-1 33/33, 2D smoke 297/297, benchmark 14/14, host 113/113, validate
+exit 0. Version 0.2.1 / versionCode 3. 30-task roadmap unchanged (8
+phases, 30/30); 3D programme: 7 phases + 1 hotfix.

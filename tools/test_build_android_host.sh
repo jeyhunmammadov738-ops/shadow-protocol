@@ -191,13 +191,20 @@ grep -q "test_3d_phase6.gd" "$ROOT/tools/validate_project.sh" && ok "phase-6 tes
 [ -f "$ROOT/tools/benchmark_3d.gd" ] && ok "benchmark_3d.gd exists" || bad "benchmark_3d.gd missing"
 grep -q "res://scenes/main3d.tscn" "$ROOT/project.godot" && ok "default main scene is the 3D scene" || bad "main scene not switched to 3D"
 [ -f "$ROOT/scenes/main.tscn" ] && ok "2D main.tscn still present" || bad "2D main.tscn missing"
-grep -q 'config/version="0.2.0"' "$ROOT/project.godot" && ok "project version metadata is 0.2.0" || bad "project version not 0.2.0"
-grep -q "^version/code=2" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 2" || bad "versionCode not 2"
-grep -q '^version/name="0.2.0"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.2.0" || bad "versionName not 0.2.0"
+grep -q 'config/version="0.2.1"' "$ROOT/project.godot" && ok "project version metadata is 0.2.1" || bad "project version not 0.2.1"
+grep -q "^version/code=3" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 3" || bad "versionCode not 3"
+grep -q '^version/name="0.2.1"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.2.1" || bad "versionName not 0.2.1"
 grep -q 'package/unique_name="com.shadowprotocol.game"' "$ROOT/export_presets.cfg" && ok "package name preserved" || bad "package name changed"
 grep -q "arm64-v8a=true" "$ROOT/export_presets.cfg" && ok "arm64-v8a target preserved" || bad "arm64-v8a target lost"
 grep -q "benchmark_3d.gd" "$ROOT/tools/validate_project.sh" && ok "3D benchmark wired into validation" || bad "benchmark not wired"
 grep -q "3D Build Acceptance" "$ROOT/docs/ANDROID_DEVICE_ACCEPTANCE.md" && ok "3D device acceptance checklist documented" || bad "3D acceptance checklist missing"
 
+# --- 0.2.1 device hotfix ---
+[ -f "$ROOT/tools/test_3d_touch.gd" ] && ok "3D touch regression test exists" || bad "touch regression test missing"
+grep -q "player.set_touch_controls(touch_layer)" "$ROOT/scripts/main3d.gd" && ok "Main3D wires the touch layer into Player3D" || bad "touch layer not wired into Player3D"
+grep -q "func to_canvas" "$ROOT/scripts/mobile_controls.gd" && ok "touch positions normalised into canvas space" || bad "no touch coordinate normalisation"
+grep -q "func _face_open_corridor" "$ROOT/scripts/main3d.gd" && ok "spawn faces the open corridor" || bad "spawn orientation fix missing"
+grep -q "BLOCKED_PITCH" "$ROOT/scripts/camera_rig.gd" && ok "camera lifts over obstruction instead of collapsing" || bad "camera lift-over missing"
+grep -q "test_3d_touch.gd" "$ROOT/tools/validate_project.sh" && ok "touch regression wired into validation" || bad "touch regression not wired"
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

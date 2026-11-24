@@ -156,3 +156,53 @@ SurfaceFlinger window, 91.9% of frames at 16 ms, 7.91% of intervals at
 24 ms or longer, zero layer-level dropped frames. All three tasks
 (P7-T2, P8-T1, P8-T3) are COMPLETE. Full results and interpretation
 limits: [ANDROID_ACCEPTANCE_REPORT.md](ANDROID_ACCEPTANCE_REPORT.md).
+
+---
+
+# 3D Build Acceptance (v0.2.0, default scene = main3d.tscn)
+
+The shipped APK now boots the 3D scene. The 2D prototype is still in the
+repository (`res://scenes/main.tscn`) and still passes its 297/297 smoke
+suite, but it is no longer the default main scene. Run this checklist on
+the POCO X5 Pro 5G (Android 14) after installing `0.2.0` (versionCode 2).
+
+## A. Host evidence already verified (device-free)
+
+| Check | Result |
+|---|---|
+| Release APK signed with the existing upload keystore, v2+v3 | verified by `tools/verify_release_apk_host.sh` |
+| ABI `arm64-v8a` only, package `com.shadowprotocol.game` | verified in badging |
+| versionName `0.2.0` / versionCode `2` | verified in badging |
+| Debug certificate absent | verified |
+| 3D benchmark (5 scenarios) | 15/15 checks, no stalls, 1 GridMap, 28 mesh instances, 38.6 MB static memory |
+| Validation gate | import + boot + 2D smoke 297/297 + 3D phases 33/50/20/32/49/38 |
+
+## B. On-device checklist (mark each line)
+
+| ID | Scenario | Expected | Evidence | Status |
+|---|---|---|---|---|
+| D1 | Cold start | 3D level appears and is playable < 10 s, no black screen | Screen recording | NOT TESTED |
+| D2 | Steady-state FPS | 60 FPS held while standing still in the spawn corridor | Perfetto/TimeStats capture | NOT TESTED |
+| D3 | Movement FPS | 60 FPS while walking + camera dragging simultaneously | TimeStats capture | NOT TESTED |
+| D4 | Alert stress FPS | 60 FPS with all guards chasing (alert state) | TimeStats capture | NOT TESTED |
+| D5 | Joystick ergonomics | Left thumb moves, auto-centers, never clipped by HUD | Recording | NOT TESTED |
+| D6 | Camera ergonomics | Right-half drag yaw/pitch is smooth, no conflict with buttons | Recording | NOT TESTED |
+| D7 | Button responsiveness | CROUCH / SPRINT / USE respond within one frame, no double fire | Recording | NOT TESTED |
+| D8 | HUD legibility | Visibility + detection meters, objective panel and prompt readable in landscape | Screenshot | NOT TESTED |
+| D9 | Interaction prompt | "USE: Hack Terminal" / "USE: Open Door" appears only in range with LOS | Recording | NOT TESTED |
+| D10 | Door loop | Closed door blocks movement and guard vision; USE opens it, guard sees through immediately | Recording | NOT TESTED |
+| D11 | Terminal loop | USE completes objective, panel turns green, counter increments | Recording | NOT TESTED |
+| D12 | Extraction loop | Beacon LOCKED -> ACTIVE after all terminals -> DONE + success overlay | Recording | NOT TESTED |
+| D13 | Detection pressure | Restricted zone fails the mission roughly twice as fast | Recording | NOT TESTED |
+| D14 | Enemy LOS | Guards do not see through walls; vision cone matches detection | Recording | NOT TESTED |
+| D15 | Audio + haptics | Terminal, door, warning, success and failure cues are audible/feelable | Recording | NOT TESTED |
+| D16 | Thermal stability | 10 min session without throttle below 45 FPS; device stays warm, not hot | TimeStats + note | NOT TESTED |
+| D17 | Restart cycles | 5 consecutive layout reloads: no leaked nodes, no duplicate audio, HUD resets | Recording + `adb shell dumpsys meminfo` | NOT TESTED |
+| D18 | Background/foreground | Pause and resume keeps the mission state consistent | Recording | NOT TESTED |
+
+## C. Reporting back
+
+Send the recordings/TimeStats files plus any D-line that failed. A failure
+on D2/D3/D4/D16 is a performance blocker for the 3D build; a failure on
+D10/D11/D12/D17 is a functional blocker. Both are handled before any
+further feature work.

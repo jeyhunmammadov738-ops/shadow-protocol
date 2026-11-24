@@ -1150,3 +1150,24 @@ and 20:9, feedback cues, restart cleanliness), phase-5 49/49, phase-4
 32/32, phase-3 20/20, phase-2 50/50, phase-1 33/33, 2D smoke 297/297,
 host 98/98, import/boot/validate exit 0. 30-task acceptance roadmap
 unchanged (8 phases, 30/30).
+
+## 3D Conversion Programme Note (2026-11-24, Phase 3D-7 — FINAL)
+
+Performance + Android export + device acceptance COMPLETE. The shipped
+build is now the 3D game: project.godot default main scene is
+res://scenes/main3d.tscn, version 0.2.0 (versionCode 2), package
+com.shadowprotocol.game unchanged, same release signing identity. The 2D
+prototype stays in the repository and still passes its 297/297 smoke
+suite. New tools/benchmark_3d.gd profiles five scenarios (steady state,
+active movement, alert stress, interactions, restart cycles) and gates
+15 checks: no stalls (180 frames per scenario at the fixed 60 Hz step),
+single GridMap for the whole level, 28 mesh instances, 38.6 MB static
+memory, 1776 objects, no duplicated mission signal connections and guard
+/terminal counts matching the active layout after four reloads. It runs
+inside tools/validate_project.sh (now 12 steps) and the host suite is at
+109/109. Honest limit: the headless renderer is a dummy, so draw-call and
+FPS numbers are not device performance; the 18-line 3D checklist in
+docs/ANDROID_DEVICE_ACCEPTANCE.md (D1..D18) is what proves the device
+numbers on the POCO X5 Pro 5G. Signed 0.2.0 APK verified: v2+v3, cert
+74ec3b4e..., debug cert absent, arm64-v8a. 30-task acceptance roadmap
+unchanged (8 phases, 30/30); 3D programme: 7 phases delivered.

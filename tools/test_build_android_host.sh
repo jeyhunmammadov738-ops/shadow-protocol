@@ -83,7 +83,10 @@ grep -q "extends CharacterBody3D" "$ROOT/scripts/player3d.gd" && ok "player3d.gd
 grep -q "SpringArm3D" "$ROOT/scripts/camera_rig.gd" && ok "camera_rig.gd uses SpringArm3D collision-aware camera" || bad "camera_rig.gd lacks SpringArm3D"
 grep -q "is_position_owned" "$ROOT/scripts/camera_rig.gd" && ok "camera rig defers touch ownership to the shared touch layer" || bad "camera rig ignores touch ownership"
 grep -q "func is_position_owned" "$ROOT/scripts/mobile_controls.gd" && ok "touch layer exposes is_position_owned (single source of truth)" || bad "touch layer lacks is_position_owned"
-grep -q 'run/main_scene="res://scenes/main.tscn"' "$ROOT/project.godot" && ok "main scene remains the untouched 2D prototype" || bad "main scene changed"
+# Phase 3D-7: the shipped default is the 3D scene; the 2D prototype must
+# still exist and stay loadable (its own smoke suite proves that).
+grep -q 'run/main_scene="res://scenes/main3d.tscn"' "$ROOT/project.godot" && ok "default main scene is the 3D build" || bad "main scene not 3D"
+[ -f "$ROOT/scenes/main.tscn" ] && ok "2D prototype scene still shipped in the repository" || bad "2D prototype scene missing"
 grep -q '\[node name="Main" type="Node2D"\]' "$ROOT/scenes/main.tscn" && ok "2D main.tscn root is still Node2D" || bad "2D main.tscn was altered"
 grep -q "res://scenes/player.tscn" "$ROOT/scenes/main.tscn" && ok "2D main.tscn still instances the 2D player" || bad "2D player instance removed"
 grep -q "res://tools/test_3d_phase1.gd" "$ROOT/tools/validate_project.sh" && ok "3D test is wired into validate_project.sh" || bad "3D test not wired into validation"
@@ -93,8 +96,11 @@ VER="$ROOT/tools/verify_release_apk_host.sh"
 if [ -f "$VER" ]; then
   bash -n "$VER" 2>/dev/null && ok "verify_release_apk_host.sh passes bash -n syntax validation" || bad "verify_release_apk_host.sh syntax"
   grep -q "ANDROID_SDK_ROOT" "$VER" && ok "APK verifier uses ANDROID_SDK_ROOT (no absolute paths)" || bad "APK verifier uses an absolute path"
-  REL="$ROOT/build/ShadowProtocol-v0.1.0-release.apk"
-  DBG="$ROOT/build/ShadowProtocol-v0.1.0-debug.apk"
+  # Version-aware artifact paths: the authoritative version comes from the
+  # export preset, exactly like tools/build_android.sh.
+  VNAME="$(grep -m1 '^version/name=' "$ROOT/export_presets.cfg" | sed 's/.*"\(.*\)"/\1/')"
+  REL="$ROOT/build/ShadowProtocol-v${VNAME}-release.apk"
+  DBG="$ROOT/build/ShadowProtocol-v${VNAME}-debug.apk"
   if [ -f "$REL" ]; then
     if bash "$VER" "$REL" >/dev/null 2>&1; then ok "APK verifier accepts the release artifact"; else bad "APK verifier rejects a valid release APK"; fi
     if [ -f "$DBG" ]; then
@@ -180,6 +186,18 @@ grep -q "shadow_enabled = false" "$ROOT/scenes/main3d.tscn" && ok "realtime shad
 grep -q "USE: Hack Terminal" "$ROOT/scripts/main3d.gd" && ok "contextual interaction prompts wired" || bad "interaction prompts missing"
 grep -q "feedback_manager.play_event" "$ROOT/scripts/main3d.gd" && ok "3D feedback manager wired" || bad "3D feedback missing"
 grep -q "test_3d_phase6.gd" "$ROOT/tools/validate_project.sh" && ok "phase-6 test wired into validation" || bad "phase-6 test not wired"
+
+# --- Phase 3D-7 (performance, default scene, version 0.2.0) ---
+[ -f "$ROOT/tools/benchmark_3d.gd" ] && ok "benchmark_3d.gd exists" || bad "benchmark_3d.gd missing"
+grep -q "res://scenes/main3d.tscn" "$ROOT/project.godot" && ok "default main scene is the 3D scene" || bad "main scene not switched to 3D"
+[ -f "$ROOT/scenes/main.tscn" ] && ok "2D main.tscn still present" || bad "2D main.tscn missing"
+grep -q 'config/version="0.2.0"' "$ROOT/project.godot" && ok "project version metadata is 0.2.0" || bad "project version not 0.2.0"
+grep -q "^version/code=2" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 2" || bad "versionCode not 2"
+grep -q '^version/name="0.2.0"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.2.0" || bad "versionName not 0.2.0"
+grep -q 'package/unique_name="com.shadowprotocol.game"' "$ROOT/export_presets.cfg" && ok "package name preserved" || bad "package name changed"
+grep -q "arm64-v8a=true" "$ROOT/export_presets.cfg" && ok "arm64-v8a target preserved" || bad "arm64-v8a target lost"
+grep -q "benchmark_3d.gd" "$ROOT/tools/validate_project.sh" && ok "3D benchmark wired into validation" || bad "benchmark not wired"
+grep -q "3D Build Acceptance" "$ROOT/docs/ANDROID_DEVICE_ACCEPTANCE.md" && ok "3D device acceptance checklist documented" || bad "3D acceptance checklist missing"
 
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

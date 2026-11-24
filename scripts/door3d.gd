@@ -64,4 +64,4 @@ func _apply_state() -> void:
 			var face: MeshInstance3D = _panel.get_node("Face") as MeshInstance3D
 			_mat = face.get_active_material(0) as StandardMaterial3D
 			if _mat != null:
-				_mat.albedo_color = Color(0.35, 0.62, 0.72) if is_open_flag else Color(0.42, 0.46, 0.55)
+				_mat.albedo_color = Palette.PLAYER.darkened(0.25) if is_open_flag else Palette.ENEMY_SLATE.darkened(0.35)

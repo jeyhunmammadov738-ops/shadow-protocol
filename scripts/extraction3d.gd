@@ -50,14 +50,14 @@ func _apply() -> void:
 	_mat.emission_enabled = true
 	match vis_state:
 		VisState.LOCKED:
-			_mat.albedo_color = Color(0.35, 0.40, 0.45)
-			_mat.emission = Color(0.20, 0.25, 0.30)
+			_mat.albedo_color = Palette.EXTRACTION_LOCKED
+			_mat.emission = Palette.EXTRACTION_LOCKED.darkened(0.3)
 			_mat.emission_energy_multiplier = 0.25
 		VisState.ACTIVE:
-			_mat.albedo_color = Color(0.35, 0.85, 0.45)
-			_mat.emission = Color(0.32, 0.85, 0.45)
+			_mat.albedo_color = Palette.EXTRACTION
+			_mat.emission = Palette.EXTRACTION
 			_mat.emission_energy_multiplier = 1.2
 		VisState.DONE:
-			_mat.albedo_color = Color(0.45, 0.95, 1.0)
-			_mat.emission = Color(0.45, 0.95, 1.0)
+			_mat.albedo_color = Palette.PLAYER_SPRINT
+			_mat.emission = Palette.PLAYER_SPRINT
 			_mat.emission_energy_multiplier = 2.0

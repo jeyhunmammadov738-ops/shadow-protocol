@@ -1126,3 +1126,27 @@ visual states, 1x vs 2x timer, reset, grace failure, interaction
 priority, restart cleanliness, four layouts), phase-4 32/32, phase-3
 20/20, phase-2 50/50, phase-1 33/33, 2D smoke 297/297, host 89/89,
 import/boot/validate exit 0. 30-task acceptance roadmap unchanged.
+
+## 3D Conversion Programme Note (2026-11-24, Phase 3D-6)
+
+UI/touch adaptation + visual polish COMPLETE. New files:
+scenes/ui/hud3d.tscn and scripts/hud3d.gd, which instance the SAME
+meter/overlay scripts the 2D prototype ships (visibility_meter,
+detection_meter, warning_layer, mission_overlay) plus a top-left
+mission status panel, a bottom-centre contextual prompt ("USE: Open
+Door" / "USE: Hack Terminal" / "REACH EXTRACTION") and a subtle centre
+reticle that highlights on a valid target. Live wiring reads Player3D
+visibility, MissionManager detection ratio/state/objectives/extraction
+and Main3D interaction resolution each frame. Palette.gd now drives 3D
+floors, walls, terminals, doors, extraction beacon and guard state
+colours; realtime directional shadows are disabled for the mobile
+budget (ambient + emissive only, no post-processing). FeedbackManager
+is owned by Main3D and plays terminal/door/warning/success/failure
+cues with haptics. Fixed during testing: the interaction prompt was
+anchored above the screen (negative Y) and would never have rendered.
+Tests: 3D phase-6 38/38 (HUD live updates, prompts appear/clear,
+reticle, no HUD/button overlap and full containment at 16:9, 19.5:9
+and 20:9, feedback cues, restart cleanliness), phase-5 49/49, phase-4
+32/32, phase-3 20/20, phase-2 50/50, phase-1 33/33, 2D smoke 297/297,
+host 98/98, import/boot/validate exit 0. 30-task acceptance roadmap
+unchanged (8 phases, 30/30).

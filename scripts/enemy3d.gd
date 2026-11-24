@@ -79,13 +79,13 @@ const SEARCH_PROBES: Array[Vector3] = [
 	Vector3(68, 0, 68), Vector3(-68, 0, 68), Vector3(68, 0, -68), Vector3(-68, 0, -68),
 ]
 
-const STATE_COLORS: Dictionary = {
-	STATE_PATROL: Color(0.36, 0.45, 0.55),
-	STATE_SUSPICIOUS: Color(0.90, 0.78, 0.30),
-	STATE_INVESTIGATING: Color(0.95, 0.62, 0.25),
-	STATE_ALERT: Color(0.95, 0.28, 0.28),
-	STATE_SEARCHING: Color(0.85, 0.55, 0.20),
-	STATE_RETURNING: Color(0.45, 0.60, 0.50),
+var STATE_COLORS: Dictionary = {
+	STATE_PATROL: Palette.ENEMY_SLATE.darkened(0.25),
+	STATE_SUSPICIOUS: Palette.INTERACTIVE.darkened(0.1),
+	STATE_INVESTIGATING: Palette.INTERACTIVE,
+	STATE_ALERT: Palette.ENEMY_ALERT,
+	STATE_SEARCHING: Palette.INTERACTIVE.darkened(0.15),
+	STATE_RETURNING: Palette.ENEMY_SLATE,
 }
 
 const STATE_GLYPHS: Dictionary = {

@@ -24,16 +24,16 @@ static func build() -> MeshLibrary:
 	var lib := MeshLibrary.new()
 	lib.create_item(ITEM_FLOOR_SHADOW)
 	lib.set_item_name(ITEM_FLOOR_SHADOW, "floor_shadow")
-	_configure_floor(lib, ITEM_FLOOR_SHADOW, Color(0.07, 0.09, 0.12), Color(0, 0, 0), 0.0)
+	_configure_floor(lib, ITEM_FLOOR_SHADOW, Palette.FLOOR, Color(0, 0, 0), 0.0)
 	lib.create_item(ITEM_FLOOR_LIT)
 	lib.set_item_name(ITEM_FLOOR_LIT, "floor_lit")
-	_configure_floor(lib, ITEM_FLOOR_LIT, Color(0.45, 0.38, 0.22), Color(0.99, 0.86, 0.55), 0.55)
+	_configure_floor(lib, ITEM_FLOOR_LIT, Palette.FLOOR.lerp(Palette.FLOOR_LIT, 0.75), Palette.FLOOR_LIT, 0.55)
 	lib.create_item(ITEM_WALL_A)
 	lib.set_item_name(ITEM_WALL_A, "wall_a")
-	_configure_wall(lib, ITEM_WALL_A, Color(0.16, 0.19, 0.25), Color(0.32, 0.38, 0.47))
+	_configure_wall(lib, ITEM_WALL_A, Palette.WALL, Palette.WALL_TOP)
 	lib.create_item(ITEM_WALL_B)
 	lib.set_item_name(ITEM_WALL_B, "wall_b")
-	_configure_wall(lib, ITEM_WALL_B, Color(0.21, 0.25, 0.32), Color(0.36, 0.42, 0.52))
+	_configure_wall(lib, ITEM_WALL_B, Palette.WALL.lightened(0.08), Palette.WALL_TOP.lightened(0.05))
 	_shared = lib
 	return lib
 

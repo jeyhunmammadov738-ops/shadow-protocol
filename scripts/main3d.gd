@@ -11,7 +11,10 @@ const EYE_HEIGHT: float = 55.0
 
 @onready var player: CharacterBody3D = $Player3D
 @onready var touch_layer: Control = $UI/TouchLayer
-@onready var _hud: Label = $UI/HUD
+@onready var hud: Hud3D = $UI/Hud3D
+@onready var _debug_line: Label = $UI/Hud3D/StatusPanel/Margin/Lines/Title
+
+var feedback_manager: FeedbackManager = null
 @onready var level_root: LevelGenerator3D = $LevelRoot3D
 
 var current_layout: String = "legacy"
@@ -38,6 +41,11 @@ func _ready() -> void:
 	add_child(stealth)
 	if player.has_method("set_stealth"):
 		player.set_stealth(stealth)
+	feedback_manager = FeedbackManager.new()
+	feedback_manager.name = "FeedbackManager"
+	add_child(feedback_manager)
+	if hud != null:
+		hud.bind(self)
 	mission = MissionManager.new()
 	mission.name = "MissionManager3D"
 	add_child(mission)
@@ -47,6 +55,7 @@ func _ready() -> void:
 	mission.extraction_availability_changed.connect(_on_extraction_availability)
 	mission.mission_succeeded.connect(_on_mission_succeeded)
 	mission.mission_failed.connect(_on_mission_failed)
+	mission.detection_warning.connect(_on_detection_warning)
 	load_layout("legacy")
 
 
@@ -276,8 +285,14 @@ func _on_interact() -> void:
 		return
 	if target is Terminal3D:
 		(target as Terminal3D).complete()
+		if feedback_manager != null:
+			feedback_manager.play_event(&"terminal")
+			feedback_manager.request_haptic(80)
 	elif target is Door3D:
 		(target as Door3D).toggle()
+		if feedback_manager != null:
+			feedback_manager.play_event(&"door")
+			feedback_manager.request_haptic(50)
 	# Extraction success is proximity-driven by MissionManager, not a button.
 
 
@@ -317,6 +332,21 @@ func find_interactable() -> Node3D:
 	return best
 
 
+## Contextual prompt text for the HUD ("USE: Open Door" ...). Empty when
+## nothing eligible is in range and in line of sight.
+func interaction_hint() -> String:
+	var target: Node3D = find_interactable()
+	if target == null:
+		return ""
+	if target is Terminal3D:
+		return "USE: Hack Terminal" if not (target as Terminal3D).is_completed() else ""
+	if target is Door3D:
+		return "USE: Open Door" if not (target as Door3D).is_open() else ""
+	if target is Extraction3D:
+		return "REACH EXTRACTION"
+	return ""
+
+
 func _los_clear(eye: Vector3, aim: Vector3, target: Node) -> bool:
 	var space := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(eye, aim, 1)
@@ -348,12 +378,28 @@ func _on_mission_state_changed(from_state: int, to_state: int) -> void:
 		extraction.set_completed()
 
 
+func _on_detection_warning(_level: int) -> void:
+	if feedback_manager != null:
+		feedback_manager.play_event(&"warning")
+		feedback_manager.request_haptic(40)
+
+
 func _on_mission_succeeded() -> void:
-	pass
+	if feedback_manager != null:
+		feedback_manager.play_event(&"success")
+		feedback_manager.request_haptic(250)
+	if hud != null:
+		hud.show_success(hud.objectives_done, hud.objectives_total)
+		hud.set_hud_visible(false)
 
 
-func _on_mission_failed(_reason: String) -> void:
-	pass
+func _on_mission_failed(reason: String) -> void:
+	if feedback_manager != null:
+		feedback_manager.play_event(&"failure")
+		feedback_manager.request_haptic(180)
+	if hud != null:
+		hud.show_failure(reason)
+		hud.set_hud_visible(false)
 
 
 # --------------------------------------------------------------------- HUD ---
@@ -362,7 +408,7 @@ func _process(delta: float) -> void:
 	if mission != null and level_data.size() > 0:
 		mission.update(delta, player.global_position, _enemies,
 			level_data.get("zones", []), CELL_3D, Vector3.ZERO)
-	if _hud == null or player == null:
+	if player == null:
 		return
 	var objectives: String = "0/0"
 	var extraction_text: String = "LOCKED"
@@ -381,8 +427,6 @@ func _process(delta: float) -> void:
 	var yaw_text: String = "0"
 	if rig != null and rig.has_method("get_yaw"):
 		yaw_text = str(snappedf(rad_to_deg(rig.get_yaw()), 1.0))
-	_hud.text = "3D %s | FPS %d | yaw %s | VIS %.0f%% | OBJ %s | EXT %s | %s | DET %.0f%%" % [
-		current_layout.to_upper(), Engine.get_frames_per_second(), yaw_text,
-		player.visibility * 100.0, objectives, extraction_text, state_text,
-		(mission.detection_ratio() * 100.0) if mission != null else 0.0,
-	]
+	if _debug_line != null:
+		_debug_line.text = "SHADOW PROTOCOL 3D  %s  |  %d FPS  |  yaw %s" % [
+			current_layout.to_upper(), Engine.get_frames_per_second(), yaw_text]

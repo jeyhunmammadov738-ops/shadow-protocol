@@ -1,0 +1,135 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/hud3d.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/visibility_meter.gd" id="2_vis"]
+[ext_resource type="Script" path="res://scripts/detection_meter.gd" id="3_det"]
+[ext_resource type="Script" path="res://scripts/warning_layer.gd" id="4_warn"]
+[ext_resource type="Script" path="res://scripts/mission_overlay.gd" id="5_over"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.045, 0.06, 0.09, 0.82)
+border_width_left = 3
+border_color = Color(0.3, 0.85, 0.9, 0.9)
+
+[node name="Hud3D" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_hud")
+
+[node name="WarningLayer" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_warn")
+
+[node name="StatusPanel" type="PanelContainer" parent="."]
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 344.0
+offset_bottom = 116.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="StatusPanel"]
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="Lines" type="VBoxContainer" parent="StatusPanel/Margin"]
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="StatusPanel/Margin/Lines"]
+theme_override_font_sizes/font_size = 15
+text = "SHADOW PROTOCOL 3D"
+
+[node name="Objectives" type="Label" parent="StatusPanel/Margin/Lines"]
+theme_override_font_sizes/font_size = 14
+text = "OBJECTIVES 0/0"
+
+[node name="Extraction" type="Label" parent="StatusPanel/Margin/Lines"]
+theme_override_font_sizes/font_size = 14
+text = "EXTRACTION LOCKED"
+
+[node name="State" type="Label" parent="StatusPanel/Margin/Lines"]
+theme_override_font_sizes/font_size = 13
+text = "STATE READY"
+
+[node name="VisibilityMeter" type="Control" parent="."]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -120.0
+offset_top = 14.0
+offset_right = 120.0
+offset_bottom = 36.0
+grow_horizontal = 2
+mouse_filter = 2
+script = ExtResource("2_vis")
+
+[node name="DetectionMeter" type="Control" parent="."]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -120.0
+offset_top = 46.0
+offset_right = 120.0
+offset_bottom = 68.0
+grow_horizontal = 2
+mouse_filter = 2
+script = ExtResource("3_det")
+
+[node name="Reticle" type="Control" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -9.0
+offset_top = -9.0
+offset_right = 9.0
+offset_bottom = 9.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Dot" type="ColorRect" parent="Reticle"]
+offset_left = 7.0
+offset_top = 7.0
+offset_right = 11.0
+offset_bottom = 11.0
+mouse_filter = 2
+color = Color(0.55, 0.9, 0.95, 0.55)
+
+[node name="InteractPrompt" type="Label" parent="."]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -260.0
+offset_top = -140.0
+offset_right = 260.0
+offset_bottom = -110.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 18
+text = ""
+
+[node name="MissionOverlay" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5_over")

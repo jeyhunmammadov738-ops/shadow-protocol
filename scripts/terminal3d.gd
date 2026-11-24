@@ -65,12 +65,12 @@ func _apply_visual() -> void:
 		_mat = StandardMaterial3D.new()
 		_panel.material_override = _mat
 	if state == State.COMPLETED:
-		_mat.albedo_color = Color(0.32, 0.85, 0.45)
-		_mat.emission = Color(0.25, 0.80, 0.40)
+		_mat.albedo_color = Palette.EXTRACTION
+		_mat.emission = Palette.EXTRACTION
 		_mat.emission_enabled = true
 		_mat.emission_energy_multiplier = 0.6
 	else:
-		_mat.albedo_color = Color(0.85, 0.66, 0.20)
-		_mat.emission = Color(0.95, 0.72, 0.28)
+		_mat.albedo_color = Palette.INTERACTIVE
+		_mat.emission = Palette.INTERACTIVE
 		_mat.emission_enabled = true
 		_mat.emission_energy_multiplier = 1.2

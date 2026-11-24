@@ -170,5 +170,16 @@ grep -q "find_interactable" "$ROOT/scripts/main3d.gd" && ok "interaction resolve
 grep -q "test_3d_phase5.gd" "$ROOT/tools/validate_project.sh" && ok "phase-5 test wired into validation" || bad "phase-5 test not wired"
 [ -f "$ROOT/scenes/main.tscn" ] && grep -q 'type="Node2D"' "$ROOT/scenes/main.tscn" && ok "2D main.tscn untouched" || bad "2D main.tscn altered"
 
+# --- Phase 3D-6 (HUD / touch / polish) ---
+for f in scenes/ui/hud3d.tscn scripts/hud3d.gd tools/test_3d_phase6.gd; do
+  [ -f "$ROOT/$f" ] && ok "3D-6 file present: $f" || bad "3D-6 file missing: $f"
+done
+grep -q "Palette\." "$ROOT/scripts/grid_cell_library.gd" && ok "3D cells use the shared palette" || bad "3D cells bypass the palette"
+grep -q "Palette\." "$ROOT/scripts/enemy3d.gd" && ok "3D guards use the shared palette" || bad "3D guards bypass the palette"
+grep -q "shadow_enabled = false" "$ROOT/scenes/main3d.tscn" && ok "realtime shadows stay off in 3D" || bad "3D shadows enabled (mobile budget)"
+grep -q "USE: Hack Terminal" "$ROOT/scripts/main3d.gd" && ok "contextual interaction prompts wired" || bad "interaction prompts missing"
+grep -q "feedback_manager.play_event" "$ROOT/scripts/main3d.gd" && ok "3D feedback manager wired" || bad "3D feedback missing"
+grep -q "test_3d_phase6.gd" "$ROOT/tools/validate_project.sh" && ok "phase-6 test wired into validation" || bad "phase-6 test not wired"
+
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

@@ -27,6 +27,14 @@ var mission: MissionManager = null
 var terminals: Array = []
 var doors: Array = []
 var extraction: Node3D = null
+## Phase 3D-9 facility layer (cameras, tripwires, props) + weapons + cover.
+var facility: Dictionary = {}
+var security_cameras: Array = []
+var tripwires: Array = []
+var facility_props: Array = []
+var weapons: WeaponSystem = null
+var cover: CoverSystem = null
+var alarm_count: int = 0
 var _enemies: Array = []
 var _level_lights: Array = []
 
@@ -44,6 +52,8 @@ func _ready() -> void:
 	add_child(stealth)
 	if player.has_method("set_stealth"):
 		player.set_stealth(stealth)
+	weapons = WeaponSystem.new()
+	cover = CoverSystem.new()
 	feedback_manager = FeedbackManager.new()
 	feedback_manager.name = "FeedbackManager"
 	add_child(feedback_manager)
@@ -87,6 +97,7 @@ func load_layout(key: String) -> Dictionary:
 	_spawn_lights(descriptor)
 	_spawn_enemies()
 	_spawn_mission_objects()
+	_spawn_facility()
 	_start_mission()
 	return level_data
 
@@ -268,6 +279,113 @@ func _grid_los(a: Vector2i, b: Vector2i, walls: Dictionary) -> bool:
 
 
 # ---------------------------------------------------------- mission objects ---
+
+func _spawn_facility() -> void:
+	_clear_facility()
+	facility = FacilityCatalog.build(level_data)
+	var size: float = float(level_data.get("cell_size", CELL_3D))
+	var origin: Vector3 = level_data.get("origin", Vector3.ZERO)
+	var walls: Dictionary = level_data.get("wall_cells", {})
+	if cover != null:
+		cover.configure(walls, {}, size, origin)
+	for cam_def: Dictionary in facility.get("cameras", []):
+		var cam := SecurityCamera3D.new()
+		cam.name = String(cam_def["id"])
+		cam.camera_id = cam_def["id"]
+		cam.global_position = (cam_def["pos"] as Vector3) + Vector3(0, 88, 0)
+		cam.base_yaw = float(cam_def["base_yaw"])
+		cam.sweep_arc = float(cam_def["sweep_arc"])
+		cam.sweep_speed = float(cam_def["sweep_speed"])
+		cam.view_range = float(cam_def["range"])
+		cam.view_fov = float(cam_def["fov"])
+		cam.configure(walls, size, origin)
+		add_child(cam)
+		cam.spotted_player.connect(_on_camera_spotted)
+		security_cameras.append(cam)
+		var prop := PropFactory.make_security_camera()
+		prop.global_position = cam.global_position
+		add_child(prop)
+		facility_props.append(prop)
+	for tw_def: Dictionary in facility.get("tripwires", []):
+		var tw := LaserTripwire3D.new()
+		tw.name = String(tw_def["id"])
+		tw.tripwire_id = tw_def["id"]
+		tw.configure(tw_def["a"], tw_def["b"], float(tw_def["cycle_on"]),
+			float(tw_def["cycle_off"]), float(tw_def["phase_offset"]))
+		add_child(tw)
+		tw.tripped.connect(_on_tripwire_tripped)
+		tripwires.append(tw)
+	for c: Dictionary in facility.get("containers", []):
+		var prop := PropFactory.make_hide_container(String(c["kind"]))
+		prop.global_position = c["pos"]
+		add_child(prop)
+		facility_props.append(prop)
+	for b: Dictionary in facility.get("breakers", []):
+		var prop := PropFactory.make_breaker_box()
+		prop.global_position = (b["pos"] as Vector3) + Vector3(0, 60, 0)
+		add_child(prop)
+		facility_props.append(prop)
+	for v: Dictionary in facility.get("vents", []):
+		var prop := PropFactory.make_vent_hatch()
+		prop.global_position = (v["pos"] as Vector3) + Vector3(0, 46, 0)
+		add_child(prop)
+		facility_props.append(prop)
+	for d: Dictionary in facility.get("decoys", []):
+		var prop := PropFactory.make_decoy()
+		prop.global_position = d["pos"]
+		add_child(prop)
+		facility_props.append(prop)
+	for bar: Dictionary in facility.get("barricades", []):
+		var prop := PropFactory.make_barricade(float(bar["width"]), float(bar["height"]))
+		prop.global_position = bar["pos"]
+		add_child(prop)
+		facility_props.append(prop)
+
+
+func _clear_facility() -> void:
+	for n in security_cameras + tripwires + facility_props:
+		if is_instance_valid(n):
+			n.queue_free()
+	security_cameras.clear()
+	tripwires.clear()
+	facility_props.clear()
+	alarm_count = 0
+
+
+func _on_camera_spotted() -> void:
+	alarm_count += 1
+	if feedback_manager != null:
+		feedback_manager.play_event(&"warning")
+		feedback_manager.request_haptic(60)
+	# Cameras feed the same awareness channel guards already use.
+	stealth.publish_noise(player.global_position, 320.0, &"camera_alarm", &"alarm",
+		{"source": "camera"})
+
+
+func _on_tripwire_tripped() -> void:
+	alarm_count += 1
+	if feedback_manager != null:
+		feedback_manager.play_event(&"warning")
+		feedback_manager.request_haptic(80)
+	if mission != null and mission.state == MissionManager.State.ACTIVE:
+		mission.detection_timer = mission.detection_grace
+
+
+## Fires the current weapon: emits stealth noise scaled by the weapon's
+## own noise radius and returns the shot description (empty if dry).
+func fire_weapon() -> Dictionary:
+	if weapons == null or player == null:
+		return {}
+	var shot: Dictionary = weapons.fire()
+	if shot.is_empty():
+		return shot
+	if stealth != null:
+		stealth.publish_noise(player.global_position, float(shot["noise_radius"]),
+			&"gunshot", &"alarm", {"weapon": shot["weapon"], "suppressed": shot["suppressed"]})
+	if feedback_manager != null:
+		feedback_manager.play_event(&"door" if bool(shot["suppressed"]) else &"warning")
+	return shot
+
 
 func _spawn_mission_objects() -> void:
 	for t in terminals:
@@ -456,6 +574,16 @@ func _on_mission_failed(reason: String) -> void:
 # --------------------------------------------------------------------- HUD ---
 
 func _process(delta: float) -> void:
+	if weapons != null:
+		weapons.tick(delta)
+	if player != null and not security_cameras.is_empty():
+		for cam in security_cameras:
+			if is_instance_valid(cam):
+				cam.tick(delta, player.global_position)
+	if player != null and not tripwires.is_empty():
+		for tw in tripwires:
+			if is_instance_valid(tw):
+				tw.tick(delta, player.global_position)
 	if mission != null and level_data.size() > 0:
 		mission.update(delta, player.global_position, _enemies,
 			level_data.get("zones", []), CELL_3D, Vector3.ZERO)

@@ -191,9 +191,9 @@ grep -q "test_3d_phase6.gd" "$ROOT/tools/validate_project.sh" && ok "phase-6 tes
 [ -f "$ROOT/tools/benchmark_3d.gd" ] && ok "benchmark_3d.gd exists" || bad "benchmark_3d.gd missing"
 grep -q "res://scenes/main3d.tscn" "$ROOT/project.godot" && ok "default main scene is the 3D scene" || bad "main scene not switched to 3D"
 [ -f "$ROOT/scenes/main.tscn" ] && ok "2D main.tscn still present" || bad "2D main.tscn missing"
-grep -q 'config/version="0.3.0"' "$ROOT/project.godot" && ok "project version metadata is 0.3.0" || bad "project version not 0.3.0"
-grep -q "^version/code=4" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 4" || bad "versionCode not 4"
-grep -q '^version/name="0.3.0"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.3.0" || bad "versionName not 0.3.0"
+grep -q 'config/version="0.4.0"' "$ROOT/project.godot" && ok "project version metadata is 0.4.0" || bad "project version not 0.4.0"
+grep -q "^version/code=5" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 5" || bad "versionCode not 5"
+grep -q '^version/name="0.4.0"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.4.0" || bad "versionName not 0.4.0"
 grep -q 'package/unique_name="com.shadowprotocol.game"' "$ROOT/export_presets.cfg" && ok "package name preserved" || bad "package name changed"
 grep -q "arm64-v8a=true" "$ROOT/export_presets.cfg" && ok "arm64-v8a target preserved" || bad "arm64-v8a target lost"
 grep -q "benchmark_3d.gd" "$ROOT/tools/validate_project.sh" && ok "3D benchmark wired into validation" || bad "benchmark not wired"
@@ -218,6 +218,17 @@ grep -q "FOV_SPRINT" "$ROOT/scripts/camera_rig.gd" && ok "movement FOV follow" |
 grep -q "CharacterRig.build_player" "$ROOT/scripts/player3d.gd" && ok "player procedural rig" || bad "player rig missing"
 grep -q "CharacterRig.build_guard" "$ROOT/scripts/enemy3d.gd" && ok "guard procedural rig" || bad "guard rig missing"
 grep -q "test_3d_phase8.gd" "$ROOT/tools/validate_project.sh" && ok "phase-8 wired into validation" || bad "phase-8 not wired"
+
+# --- Phase 3D-9 (web-parity port) ---
+for f in scripts/weapon_system.gd scripts/cover_system.gd scripts/security_camera.gd scripts/laser_tripwire.gd scripts/facility_catalog.gd scripts/prop_factory.gd tools/test_3d_phase9.gd; do
+  [ -f "$ROOT/$f" ] && ok "3D-9 file present: $f" || bad "3D-9 file missing: $f"
+done
+grep -c "&\"" "$ROOT/scripts/weapon_system.gd" >/dev/null && ok "weapon specs are data-driven" || bad "weapon specs missing"
+grep -q "WALL_COVER_FACTOR: float = 0.62" "$ROOT/scripts/cover_system.gd" && ok "wall cover factor matches the web build (0.62)" || bad "cover factor mismatch"
+grep -q "noise_radius" "$ROOT/scripts/weapon_system.gd" && ok "weapon noise radii ported" || bad "weapon noise missing"
+grep -q "func _spawn_facility" "$ROOT/scripts/main3d.gd" && ok "facility layer wired into main3d" || bad "facility layer not wired"
+grep -q "func fire_weapon" "$ROOT/scripts/main3d.gd" && ok "weapon firing wired to stealth noise" || bad "weapon firing not wired"
+grep -q "test_3d_phase9.gd" "$ROOT/tools/validate_project.sh" && ok "phase-9 wired into validation" || bad "phase-9 not wired"
 
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

@@ -13,12 +13,18 @@ extends Control
 signal crouch_toggled(active: bool)
 signal sprint_toggled(active: bool)
 signal interact_pressed()
+## Phase 3D-10 weapon controls.
+signal fire_pressed()
+signal reload_pressed()
+signal mode_pressed()
 
 const JOYSTICK_MAX_RADIUS: float = 110.0
 const JOYSTICK_DEAD_ZONE: float = 0.12
 const JOYSTICK_ZONE_WIDTH_RATIO: float = 0.45
 const BUTTON_RADIUS: float = 42.0
 const INTERACT_RADIUS: float = 52.0
+const FIRE_RADIUS: float = 58.0
+const UTILITY_RADIUS: float = 34.0
 
 ## NEON NOIR touch language (visual upgrade): cyan-tinted translucent
 ## fills, brighter rings, clear pressed states. Geometry (centers,
@@ -85,6 +91,27 @@ func _layout_buttons() -> void:
 			"center": Vector2(screen.x - 196.0, screen.y - 192.0),
 			"radius": BUTTON_RADIUS,
 			"label": "SPRINT",
+			"pressed": false,
+		},
+		# Phase 3D-10: FIRE sits above USE, its two utility buttons tuck
+		# inside the right column so no circle overlaps another at any of
+		# the verified aspect ratios (1280x720, 2340x1080, 2400x1080).
+		"fire": {
+			"center": Vector2(screen.x - 118.0, screen.y - 268.0),
+			"radius": FIRE_RADIUS,
+			"label": "FIRE",
+			"pressed": false,
+		},
+		"reload": {
+			"center": Vector2(screen.x - 250.0, screen.y - 286.0),
+			"radius": UTILITY_RADIUS,
+			"label": "RELOAD",
+			"pressed": false,
+		},
+		"mode": {
+			"center": Vector2(screen.x - 300.0, screen.y - 192.0),
+			"radius": UTILITY_RADIUS,
+			"label": "MODE",
 			"pressed": false,
 		},
 	}
@@ -188,6 +215,8 @@ func _handle_release(index: int) -> void:
 			sprint_toggled.emit(false)
 		elif name == "interact":
 			_buttons[name]["pressed"] = false
+		elif name == "fire" or name == "reload" or name == "mode":
+			_buttons[name]["pressed"] = false
 		queue_redraw()
 
 
@@ -225,6 +254,15 @@ func _press_button(name: String) -> void:
 			_sprint_active = not _sprint_active
 			_buttons[name]["pressed"] = _sprint_active
 			sprint_toggled.emit(_sprint_active)
+		"fire":
+			_buttons[name]["pressed"] = true
+			fire_pressed.emit()
+		"reload":
+			_buttons[name]["pressed"] = true
+			reload_pressed.emit()
+		"mode":
+			_buttons[name]["pressed"] = true
+			mode_pressed.emit()
 	queue_redraw()
 
 

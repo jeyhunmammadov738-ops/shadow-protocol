@@ -22,6 +22,7 @@ const STATE_INVESTIGATING: StringName = &"investigating"
 const STATE_ALERT: StringName = &"alert"
 const STATE_SEARCHING: StringName = &"searching"
 const STATE_RETURNING: StringName = &"returning"
+const STATE_DOWNED: StringName = &"downed"
 
 const EYE_HEIGHT: float = 60.0
 const CHEST_HEIGHT: float = 45.0
@@ -71,6 +72,17 @@ var _search_center: Vector3 = Vector3.ZERO
 var _search_probe_index: int = 0
 var _investigation_score: float = 0.0
 var _ai_accum: float = 0.0
+## Phase 3D-10 combat / squad / cover state.
+var hp: float = 3.0
+var downed: bool = false
+var squad = null   # SquadDirector (RefCounted-safe)
+var cover = null   # CoverSystem
+var act3: bool = false
+var cover_moves: int = 0
+var squad_alerts_received: int = 0
+var damage_taken: float = 0.0
+var _cover_target: Vector3 = Vector3.ZERO
+var _cover_timer: float = 0.0
 var _stealth: Node = null
 var _noise_connected: bool = false
 var _noise_owner: Node = null
@@ -119,6 +131,96 @@ func set_stealth(system: Node) -> void:
 
 func set_player(p: Node) -> void:
 	player = p
+
+
+## Registers the SquadDirector so the guard can share threats.
+func set_squad(director) -> void:
+	squad = director
+
+
+## Registers the CoverSystem so the guard can hunker down.
+func set_cover_system(system) -> void:
+	cover = system
+
+
+## Act-3 escalation (web commit 88c88f6): tighter, faster patrol behaviour.
+func set_act3(active: bool) -> void:
+	act3 = active
+	if active and _patrol_route.size() > 1:
+		# Act 3 revisits every waypoint in reverse as well, so the route
+		# closes a loop instead of walking a single line.
+		_patrol_index = 0
+		_target = _patrol_route[0]
+
+
+func is_downed() -> bool:
+	return downed
+
+
+func can_be_hit() -> bool:
+	return not downed
+
+
+## Damage entry point. Downed guards stop acting, report to the squad and
+## leave a body other guards can notice.
+func take_damage(amount: float, source_pos: Vector3 = Vector3.ZERO) -> Dictionary:
+	if downed:
+		return {"applied": 0.0, "downed": true}
+	damage_taken += amount
+	hp -= amount
+	var was_downed: bool = hp <= 0.0
+	if was_downed:
+		downed = true
+		state = STATE_DOWNED
+		velocity = Vector3.ZERO
+		if rig != null and rig.has_method("set_downed"):
+			rig.set_downed(true)
+		_update_visual_state()
+		state_changed.emit(STATE_ALERT, STATE_DOWNED)
+		if squad != null and squad.has_method("report_downed"):
+			squad.report_downed(self)
+	else:
+		# Being shot points the guard at the shooter even without line of sight.
+		last_sound_position = source_pos
+		_investigation_score = 999.0
+		if state != STATE_ALERT:
+			_enter_state(STATE_INVESTIGATING)
+	return {"applied": amount, "downed": downed, "hp": hp}
+
+
+## Radio callout from a squadmate: go alert on the shared threat position.
+func receive_squad_alert(position: Vector3, source_id: StringName = &"") -> void:
+	if downed or state == STATE_ALERT:
+		return
+	squad_alerts_received += 1
+	last_known_player_position = position
+	suspicion = maxf(suspicion, suspicion_alert_threshold)
+	_enter_state(STATE_ALERT)
+
+
+## A body was found nearby: investigate it, never re-report the same body.
+func notice_downed_body(position: Vector3) -> void:
+	if downed or state == STATE_ALERT:
+		return
+	last_sound_position = position
+	_investigation_score = 500.0
+	_enter_state(STATE_INVESTIGATING)
+
+
+## Flank order from the SquadDirector: approach the threat from cover.
+func order_flank(focus: Vector3) -> void:
+	if downed:
+		return
+	if cover != null and cover.has_method("cover_positions"):
+		var spots: Array = cover.cover_positions(global_position, focus, 3)
+		if spots.size() > 0:
+			_cover_target = spots[0]
+			_cover_timer = 3.0
+			cover_moves += 1
+			_target = _cover_target
+			return
+	last_known_player_position = focus
+	_enter_state(STATE_ALERT)
 
 
 func set_enemy_id(id: StringName) -> void:
@@ -234,6 +336,10 @@ func _disconnect_noise() -> void:
 func _on_noise_event(event) -> void:
 	if bench_enabled and state != STATE_ALERT and event.source_id != enemy_id:
 		bench_noise_reactions += 1
+	if downed or state == STATE_DOWNED:
+		return
+	# Priority rule (web enemyAI): an alerted guard already owns the threat,
+	# so sound never redirects it. This keeps the 3D-4 behaviour intact.
 	if state == STATE_ALERT:
 		return
 	if event.source_id == enemy_id:
@@ -283,6 +389,21 @@ func _enter_state(new_state: StringName) -> void:
 func _decide(dt: float) -> void:
 	if bench_enabled:
 		bench_decision_ticks += 1
+	if downed:
+		return
+	# Hunker-down: while investigating/searching with no visual, use cover.
+	if _cover_timer > 0.0:
+		_cover_timer -= dt
+		if _cover_timer > 0.0:
+			return
+	if (state == STATE_INVESTIGATING or state == STATE_SEARCHING) and cover != null:
+		var strength_now: float = detection_strength()
+		if strength_now <= 0.0 and cover.has_method("cover_positions"):
+			var spots: Array = cover.cover_positions(global_position, last_sound_position, 2)
+			if spots.size() > 0 and planar_distance(spots[0], global_position) > ARRIVE_DISTANCE:
+				_target = spots[0]
+				_cover_timer = 2.5
+				cover_moves += 1
 	var strength: float = detection_strength()
 	var sees_player: bool = strength > 0.0
 	if sees_player:
@@ -341,6 +462,11 @@ func _decide(dt: float) -> void:
 
 
 func _advance_patrol() -> void:
+	if act3 and _patrol_route.size() > 1 and _patrol_index == _patrol_route.size() - 1:
+		_patrol_route.reverse()
+		_patrol_index = 0
+		_target = _patrol_route[0]
+		return
 	if _patrol_route.size() == 0:
 		_target = global_position
 		return
@@ -368,6 +494,11 @@ func _arrived_at(point: Vector3) -> bool:
 # -------------------------------------------------------- movement + loop ---
 
 func _speed_for_state() -> float:
+	var scale: float = 1.18 if act3 else 1.0
+	return _base_speed_for_state() * scale
+
+
+func _base_speed_for_state() -> float:
 	match state:
 		STATE_ALERT:
 			return chase_speed
@@ -379,6 +510,9 @@ func _speed_for_state() -> float:
 
 func _physics_process(delta: float) -> void:
 	_animate_rig(delta)
+	if downed:
+		velocity = Vector3.ZERO
+		return
 	_state_timer += delta
 	var to_target: Vector3 = _target - global_position
 	to_target.y = 0.0

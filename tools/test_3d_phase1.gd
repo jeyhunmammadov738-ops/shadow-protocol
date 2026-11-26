@@ -83,6 +83,10 @@ func _run() -> void:
 	# 0.2.1: the spawn now faces the open corridor and the camera lifts over
 	# walls, so normalise orientation here and measure the rig mechanic in a
 	# controlled frame (yaw 0) from an open cell.
+	# Guards are frozen for the measurement: a patrolling body nudging the
+	# player mid-measurement made this check intermittently fail (3D-10).
+	for guard in main.enemies():
+		guard.set_physics_process(false)
 	if main.level_root != null:
 		player.global_position = main.level_root.cell_to_world(Vector2i(6, 13))
 		player.velocity = Vector3.ZERO
@@ -97,15 +101,19 @@ func _run() -> void:
 	_check(cam.z > pivot.z + 50.0, "camera sits BEHIND the player (+Z at yaw 0)")
 	_check(cam.y > pivot.y + 10.0, "camera sits ABOVE the pivot")
 	var dist: float = cam.distance_to(pivot)
-	# A blocked arm legitimately sits closer; the lift-over keeps it usable,
-	# so the floor is 80 units rather than a full spring length.
 	_check(dist > 80.0 and dist <= spring.spring_length + 1.0,
 		"camera distance %.1f within spring length %.1f" % [dist, spring.spring_length])
+	for guard in main.enemies():
+		guard.set_physics_process(true)
 
 	# --- grounded forward movement (camera-relative) ---
 	# Phase 3D-2: main3d.tscn now generates a real GridMap layout. Move the
 	# player into the wide open south corridor so these assertions measure
 	# locomotion and camera-relative direction, not wall collisions.
+	# Guards are frozen for the measurement: a patrolling body nudging the
+	# player mid-measurement made this check intermittently fail (3D-10).
+	for guard in main.enemies():
+		guard.set_physics_process(false)
 	if main.level_root != null:
 		player.global_position = main.level_root.cell_to_world(Vector2i(6, 13))
 		player.velocity = Vector3.ZERO

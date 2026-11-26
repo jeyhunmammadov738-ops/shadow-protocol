@@ -15,6 +15,8 @@ extends CharacterBody3D
 ## FOV gate: facing.dot(dir) >= cos(fov/2), plus unobstructed LOS.
 
 signal state_changed(from_state: StringName, to_state: StringName)
+## Phase 3D-11: a guard landed a shot on the player.
+signal shot_player(damage: float, from_position: Vector3)
 
 const STATE_PATROL: StringName = &"patrol"
 const STATE_SUSPICIOUS: StringName = &"suspicious"
@@ -83,6 +85,25 @@ var squad_alerts_received: int = 0
 var damage_taken: float = 0.0
 var _cover_target: Vector3 = Vector3.ZERO
 var _cover_timer: float = 0.0
+## Phase 3D-11 return fire (new feature, built on existing web primitives).
+## Weapon damage is authored on the guard scale (a guard dies at hp 3.0),
+## while the player uses a 100-point health pool. This keeps the web balance
+## ratios between weapons while making hits meaningful against the player.
+const PLAYER_DAMAGE_SCALE: float = 12.0
+var weapon_id: StringName = &"hk416"   # web GuardAI default
+var reaction_beat: float = 0.32        # web REACTION_BEAT_SEC
+var fire_enabled: bool = true
+var ammo: int = 30
+var reserve: int = 60
+var shots_fired: int = 0
+var shots_landed: int = 0
+var reload_left: float = 0.0
+var _fire_cd: float = 0.0
+var _burst_left: int = 0
+var _burst_timer: float = 0.0
+var _reaction_left: float = 0.0
+var _had_visual: bool = false
+var _suppressor_role: bool = false
 var _stealth: Node = null
 var _noise_connected: bool = false
 var _noise_owner: Node = null
@@ -221,6 +242,180 @@ func order_flank(focus: Vector3) -> void:
 			return
 	last_known_player_position = focus
 	_enter_state(STATE_ALERT)
+
+
+## Assigns a weapon from the shared spec table (never a duplicate copy).
+func set_weapon(id: StringName) -> void:
+	if not WeaponSystem.SPECS.has(id):
+		return
+	weapon_id = id
+	ammo = int(WeaponSystem.SPECS[id]["mag"])
+	reserve = int(WeaponSystem.SPECS[id]["start_reserve"])
+
+
+func weapon_spec() -> Dictionary:
+	return WeaponSystem.SPECS.get(weapon_id, WeaponSystem.SPECS[&"hk416"])
+
+
+## Squad role from the director: a suppressor holds and fires.
+func set_suppressor_role(active: bool) -> void:
+	_suppressor_role = active
+
+
+func is_reloading() -> bool:
+	return reload_left > 0.0
+
+
+## Reaction beat must elapse after first acquiring visual contact, so the
+## player always gets a moment to break line of sight.
+func reaction_ready() -> bool:
+	return _had_visual and _reaction_left <= 0.0
+
+
+## True when this guard may fire this frame: alive, alert, armed, has LOS,
+## target inside the weapon's own range and the reaction beat has passed.
+func can_fire_at(target_pos: Vector3) -> bool:
+	if downed or not fire_enabled or not alive_check():
+		return false
+	if state != STATE_ALERT:
+		return false
+	if is_reloading() or ammo <= 0:
+		return false
+	if _fire_cd > 0.0 or _burst_timer > 0.0:
+		return false
+	if not reaction_ready():
+		return false
+	var spec: Dictionary = weapon_spec()
+	if planar_distance(global_position, target_pos) > float(spec["range"]):
+		return false
+	if not can_see_player():
+		return false
+	if _guard_in_line(target_pos):
+		return false
+	return true
+
+
+func alive_check() -> bool:
+	return not downed
+
+
+## Friendly fire guard: another standing guard close to the firing line.
+func _guard_in_line(target_pos: Vector3) -> bool:
+	if squad == null or not squad.has_method("alive_guards"):
+		return false
+	var to_target: Vector3 = target_pos - global_position
+	to_target.y = 0.0
+	var length: float = to_target.length()
+	if length < 0.001:
+		return false
+	var dir: Vector3 = to_target / length
+	for other in squad.alive_guards():
+		if other == self or not is_instance_valid(other):
+			continue
+		var to_other: Vector3 = other.global_position - global_position
+		to_other.y = 0.0
+		var along: float = to_other.dot(dir)
+		if along <= 8.0 or along >= length:
+			continue
+		var lateral: float = (to_other - dir * along).length()
+		if lateral < 26.0:
+			return true
+	return false
+
+
+## Deterministic hit chance from the perception inputs the stealth system
+## already produces: closer, lit, moving targets are easier to hit, and the
+## cover factors the player hides behind are honoured.
+func hit_chance(target_pos: Vector3, cover_factor: float = 1.0) -> float:
+	var spec: Dictionary = weapon_spec()
+	var dist: float = planar_distance(global_position, target_pos)
+	var range_norm: float = clampf(dist / maxf(1.0, float(spec["range"])), 0.0, 1.0)
+	var base: float = lerpf(0.82, 0.28, range_norm)
+	var strength: float = detection_strength()
+	base *= 0.55 + 0.45 * clampf(strength, 0.0, 1.0)
+	base *= clampf(cover_factor, 0.35, 1.0)
+	return clampf(base, 0.08, 0.92)
+
+
+## Fires one round at the player. Returns a shot description, or an empty
+## dict when the gate refuses (dry, reloading, no LOS, no reaction beat).
+func fire_at_player(target_pos: Vector3, cover_factor: float = 1.0,
+		roll: float = -1.0) -> Dictionary:
+	if not can_fire_at(target_pos):
+		return {}
+	var spec: Dictionary = weapon_spec()
+	ammo -= 1
+	shots_fired += 1
+	_fire_cd = float(spec["semi_cd"])
+	if _burst_left <= 0:
+		_burst_left = 2
+		_burst_timer = float(spec["auto_interval"])
+	else:
+		_burst_left -= 1
+		_burst_timer = float(spec["auto_interval"])
+	if ammo <= 0:
+		_start_reload()
+	var chance: float = hit_chance(target_pos, cover_factor)
+	# Deterministic: a fixed seed sequence, never an unseeded roll.
+	var r: float = roll if roll >= 0.0 else _deterministic_roll()
+	var landed: bool = r < chance
+	if landed:
+		shots_landed += 1
+		shot_player.emit(float(spec["damage"]) * PLAYER_DAMAGE_SCALE, global_position)
+	return {
+		"weapon": weapon_id,
+		"landed": landed,
+		"chance": chance,
+		"damage": float(spec["damage"]) * PLAYER_DAMAGE_SCALE if landed else 0.0,
+		"noise_radius": float(spec["noise_radius"]),
+		"range": float(spec["range"]),
+		"suppressed": bool(spec["suppressed"]),
+		"from": global_position,
+		"ammo_left": ammo,
+	}
+
+
+## Small deterministic PRNG per guard: seeded from its id, advanced per shot.
+var _rng_state: int = 0
+
+func _deterministic_roll() -> float:
+	if _rng_state == 0:
+		_rng_state = abs(String(enemy_id).hash()) | 1
+	_rng_state = (_rng_state * 1103515245 + 12345) & 0x7FFFFFFF
+	return float(_rng_state % 1000) / 1000.0
+
+
+func _start_reload() -> void:
+	var spec: Dictionary = weapon_spec()
+	if reserve <= 0:
+		return
+	reload_left = float(spec["reload"])
+
+
+func _finish_reload() -> void:
+	var spec: Dictionary = weapon_spec()
+	var need: int = int(spec["mag"]) - ammo
+	var take: int = mini(need, reserve)
+	ammo += take
+	reserve -= take
+
+
+## Firing bookkeeping, driven from _physics_process.
+func _tick_weapon(delta: float) -> void:
+	_fire_cd = maxf(0.0, _fire_cd - delta)
+	_burst_timer = maxf(0.0, _burst_timer - delta)
+	if reload_left > 0.0:
+		reload_left = maxf(0.0, reload_left - delta)
+		if reload_left == 0.0:
+			_finish_reload()
+	var sees: bool = state == STATE_ALERT and can_see_player()
+	if sees and not _had_visual:
+		# Stagger the beat per guard so a squad never fires on one frame.
+		var stagger: float = 0.06 * float(abs(String(enemy_id).hash()) % 3)
+		_reaction_left = reaction_beat + stagger
+	_had_visual = sees
+	if _reaction_left > 0.0:
+		_reaction_left = maxf(0.0, _reaction_left - delta)
 
 
 func set_enemy_id(id: StringName) -> void:
@@ -391,6 +586,9 @@ func _decide(dt: float) -> void:
 		bench_decision_ticks += 1
 	if downed:
 		return
+	# A suppressor holds its position to keep the firing line steady.
+	if _suppressor_role and state == STATE_ALERT:
+		_target = global_position
 	# Hunker-down: while investigating/searching with no visual, use cover.
 	if _cover_timer > 0.0:
 		_cover_timer -= dt
@@ -513,6 +711,7 @@ func _physics_process(delta: float) -> void:
 	if downed:
 		velocity = Vector3.ZERO
 		return
+	_tick_weapon(delta)
 	_state_timer += delta
 	var to_target: Vector3 = _target - global_position
 	to_target.y = 0.0

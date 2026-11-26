@@ -146,3 +146,40 @@ func set_state_color(color: Color) -> void:
 			var mat := mi.material_override as StandardMaterial3D
 			if not mat.emission_enabled:
 				mat.albedo_color = color.darkened(0.2)
+
+
+# ------------------------------------------------------------ melee (3D-11) --
+## Animation-driven melee: a windup, an impact frame, then a recovery. Damage
+## is registered at the impact frame by the caller, not on the input frame.
+const MELEE_WINDUP: float = 0.18
+const MELEE_RECOVERY: float = 0.24
+
+var melee_timer: float = -1.0
+var melee_impact_done: bool = false
+
+
+func start_melee() -> void:
+	melee_timer = 0.0
+	melee_impact_done = false
+
+
+func melee_active() -> bool:
+	return melee_timer >= 0.0
+
+
+## True exactly once, on the frame the blade reaches the impact point.
+func melee_impact_frame() -> bool:
+	if melee_timer < 0.0 or melee_impact_done:
+		return false
+	if melee_timer >= MELEE_WINDUP:
+		melee_impact_done = true
+		return true
+	return false
+
+
+func tick_melee(delta: float) -> void:
+	if melee_timer < 0.0:
+		return
+	melee_timer += delta
+	if melee_timer > MELEE_WINDUP + MELEE_RECOVERY:
+		melee_timer = -1.0

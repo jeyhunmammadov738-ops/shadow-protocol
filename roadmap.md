@@ -1297,3 +1297,47 @@ Evidence: 3D-10 73/73, 3D-9 58/58, 3D-8 25/25, touch 24/24, 3D-6 38/38,
 3D-5 49/49, 3D-4 32/32, 3D-3 20/20, 3D-2 50/50, 3D-1 33/33, 2D smoke 297/297,
 benchmark 14/14, host 156/156, validate 16 steps exit 0. Version 0.5.0 /
 versionCode 6, same signing certificate.
+
+## Phase 3D-11 — Guard return fire and player lethality (2026-11-26)
+
+New feature, not a parity port: the authoritative web build never damages the
+player (its only two `applyBallisticHit` call sites in `gameEngine.ts`, lines
+4205 and 4613, are player shots hitting guards, and `enemyAI.ts` has no
+player-damage path). Guard return fire is therefore designed from primitives
+that already exist there: `weaponId` (web default `hk416`), `REACTION_BEAT_SEC
+= 0.32`, LOS raycasts, the cover factors, `SquadDirector` roles and the noise
+channel.
+
+- **Guard weapons** (`enemy3d.gd`): `set_weapon()` reads `WeaponSystem.SPECS`,
+  so guards spend ammo, respect the spec's range, cooldown and reload time and
+  never fire while downed. A `0.32 s` reaction beat (staggered per guard) runs
+  before the first shot, `_guard_in_line()` prevents friendly fire, and hits
+  are gated by the same LOS the vision cone uses.
+- **Deterministic accuracy**: `hit_chance()` derives from detection strength,
+  distance and the cover factors (0.62 wall / 0.55 low cover), and the roll is
+  a per-guard seeded LCG, so a fixed seed reproduces every outcome.
+- **Player health** (`scripts/player_health.gd`): 100 HP + 40 armour, armour
+  absorbs 70% of a hit, a 0.55 s post-hit grace window, delayed regeneration,
+  and cover-scaled damage. Guard weapon damage is scaled onto this pool
+  (`PLAYER_DAMAGE_SCALE = 12.0`) so the web ratios between weapons survive.
+- **Feedback**: HUD health/armour readout, directional hit wedge, damage
+  flash, `shot_guard` voice in the procedural bank plus an `impact` cue, and
+  zero health fails the mission with "KILLED IN ACTION" and a clean restart.
+- **Squad tactics**: `_assign_combat_roles()` keeps one suppressor holding its
+  firing line while the rest keep flanking through `cover_positions()`.
+- **Polish**: HUD panel and blueprint scale from `shadow_protocol/hud_scale`;
+  melee now has a windup and impact frame on the rig with damage registered at
+  impact (68-unit reach preserved).
+- **Test integrity**: two tautological assertions in the 3D-10 suite were
+  replaced with real ones (an actual fire-mode change and an actual cover move
+  onto a position returned by `cover_positions()`), which took that suite from
+  73 to 75 checks. New `tools/test_3d_phase11.gd` adds 44 checks and runs its
+  deterministic exchange twice.
+
+Evidence: 3D-11 44/44, 3D-10 75/75, 3D-9 58/58, 3D-8 25/25, touch 24/24,
+3D-6 38/38, 3D-5 49/49, 3D-4 32/32, 3D-3 20/20, 3D-2 50/50, 3D-1 33/33, 2D
+smoke 297/297, benchmark 14/14, host 169/169, validate 17 steps exit 0, import
+and 180-frame runs exit 0. Version 0.6.0 / versionCode 7.
+
+Still open: revive/carry for downed guards (deliberately deferred), no
+real-device FPS or latency evidence for 0.6.0.

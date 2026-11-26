@@ -35,6 +35,11 @@ var facility_props: Array = []
 var weapons: WeaponSystem = null
 var cover: CoverSystem = null
 var alarm_count: int = 0
+## Phase 3D-10: squad coordination, spatial audio and input wiring.
+var squad: SquadDirector = null
+var audio: SpatialAudio = null
+var act3_active: bool = false
+var shots_played: int = 0
 var _enemies: Array = []
 var _level_lights: Array = []
 
@@ -47,6 +52,7 @@ func _ready() -> void:
 		# DEVICE FIX (0.2.1): without this the joystick vector never reached
 		# Player3D, so the 3D build could not be moved by touch at all.
 		player.set_touch_controls(touch_layer)
+		bind_weapon_controls(touch_layer)
 	stealth = StealthSystem3D.new()
 	stealth.name = "StealthSystem3D"
 	add_child(stealth)
@@ -54,6 +60,12 @@ func _ready() -> void:
 		player.set_stealth(stealth)
 	weapons = WeaponSystem.new()
 	cover = CoverSystem.new()
+	squad = SquadDirector.new()
+	squad.name = "SquadDirector"
+	add_child(squad)
+	audio = SpatialAudio.new()
+	audio.name = "SpatialAudio"
+	add_child(audio)
 	feedback_manager = FeedbackManager.new()
 	feedback_manager.name = "FeedbackManager"
 	add_child(feedback_manager)
@@ -227,11 +239,50 @@ func _spawn_lights(descriptor: Dictionary) -> void:
 
 # ------------------------------------------------------------------- guards ---
 
+## Keyboard / gamepad weapon input. Touch goes through the signals the
+## mobile control layer emits, so both paths hit the same functions.
+func _poll_weapon_input() -> void:
+	if Input.is_action_pressed("fire"):
+		fire_weapon()
+	if Input.is_action_just_pressed("reload"):
+		reload_weapon()
+	if Input.is_action_just_pressed("cycle_fire_mode"):
+		cycle_fire_mode()
+
+
+## Connects the touch layer's weapon buttons (idempotent).
+func bind_weapon_controls(layer: Node) -> void:
+	if layer == null:
+		return
+	if layer.has_signal("fire_pressed") and not layer.fire_pressed.is_connected(fire_weapon):
+		layer.fire_pressed.connect(fire_weapon)
+	if layer.has_signal("reload_pressed") and not layer.reload_pressed.is_connected(reload_weapon):
+		layer.reload_pressed.connect(reload_weapon)
+	if layer.has_signal("mode_pressed") and not layer.mode_pressed.is_connected(cycle_fire_mode):
+		layer.mode_pressed.connect(cycle_fire_mode)
+
+
+## Points the procedural spatial audio layer at the live camera/player.
+func _sync_audio_listener() -> void:
+	if audio == null:
+		return
+	if is_instance_valid(player):
+		# Prefer the camera rig so panning matches the player's view.
+		var rig: Node = player.get_node_or_null("CameraRig")
+		if rig != null and "yaw" in rig:
+			audio.listener = rig
+		else:
+			audio.listener = player
+
+
 func _spawn_enemies() -> void:
 	for enemy in _enemies:
 		if is_instance_valid(enemy):
 			enemy.queue_free()
 	_enemies.clear()
+	if squad != null:
+		# Guards are rebuilt from scratch: stale references must not pile up.
+		squad.clear()
 	var spawns: Array = level_data.get("enemy_spawns", [])
 	for i in range(spawns.size()):
 		var enemy: Node3D = load("res://scenes/enemy3d.tscn").instantiate()
@@ -242,6 +293,11 @@ func _spawn_enemies() -> void:
 		enemy.set_player(player)
 		enemy.set_stealth(stealth)
 		enemy.set_patrol_route(_build_patrol_route(spawns[i]))
+		enemy.set_cover_system(cover)
+		if squad != null:
+			squad.register_guard(enemy)
+		enemy.state_changed.connect(_on_guard_state_changed)
+		_exclude_actor_from_camera(enemy)
 		_enemies.append(enemy)
 
 
@@ -352,6 +408,26 @@ func _clear_facility() -> void:
 	alarm_count = 0
 
 
+## Actors must never compress the third-person camera spring arm.
+func _exclude_actor_from_camera(actor: Node) -> void:
+	if not is_instance_valid(player):
+		return
+	var rig: Node = player.get_node_or_null("CameraRig")
+	if rig != null and rig.has_method("exclude_body"):
+		rig.exclude_body(actor)
+		rig.exclude_body(player)
+
+
+## A guard reaching ALERT radios the squad (web SquadDirector behaviour).
+func _on_guard_state_changed(_from: StringName, to_state: StringName) -> void:
+	if to_state != &"alert" or squad == null:
+		return
+	for guard in enemies():
+		if String(guard.get("state")) == "alert":
+			squad.broadcast_alert(guard.get("enemy_id"), guard.get("last_known_player_position"))
+			break
+
+
 func _on_camera_spotted() -> void:
 	alarm_count += 1
 	if feedback_manager != null:
@@ -382,9 +458,80 @@ func fire_weapon() -> Dictionary:
 	if stealth != null:
 		stealth.publish_noise(player.global_position, float(shot["noise_radius"]),
 			&"gunshot", &"alarm", {"weapon": shot["weapon"], "suppressed": shot["suppressed"]})
+	if audio != null:
+		_sync_audio_listener()
+		audio.weapon_report(shot, player.global_position)
+		shots_played += 1
 	if feedback_manager != null:
 		feedback_manager.play_event(&"door" if bool(shot["suppressed"]) else &"warning")
+		feedback_manager.request_haptic(40)
+	_apply_shot_damage(shot)
+	if hud != null and hud.has_method("refresh"):
+		hud.refresh()
 	return shot
+
+
+## Hitscan against guards along the player's facing (same planar model the
+## AI uses). Melee only reaches its short range.
+func _apply_shot_damage(shot: Dictionary) -> void:
+	if not is_instance_valid(player):
+		return
+	var origin: Vector3 = player.global_position
+	var dir: Vector3 = player.facing if "facing" in player else Vector3(0, 0, -1)
+	dir.y = 0.0
+	if dir.length_squared() < 0.0001:
+		return
+	dir = dir.normalized()
+	var reach: float = float(shot["range"])
+	var best_guard = null
+	var best_dist: float = INF
+	for guard in enemies():
+		if guard.has_method("is_downed") and guard.is_downed():
+			continue
+		var to_guard: Vector3 = guard.global_position - origin
+		to_guard.y = 0.0
+		var dist: float = to_guard.length()
+		if dist > reach or dist < 0.001:
+			continue
+		if dir.dot(to_guard.normalized()) < 0.86:
+			continue
+		if dist < best_dist:
+			best_dist = dist
+			best_guard = guard
+	if best_guard == null:
+		return
+	best_guard.take_damage(float(shot["damage"]), origin)
+	if audio != null:
+		audio.play_at(&"impact", best_guard.global_position, 260.0)
+
+
+## Reloads the current weapon (no-op when it cannot reload).
+func reload_weapon() -> bool:
+	if weapons == null:
+		return false
+	var started: bool = weapons.start_reload()
+	if started and audio != null and is_instance_valid(player):
+		audio.play_at(&"terminal", player.global_position, 180.0)
+	return started
+
+
+## Cycles the fire mode of the current weapon.
+func cycle_fire_mode() -> int:
+	if weapons == null:
+		return 0
+	var mode: int = weapons.cycle_fire_mode()
+	if audio != null and is_instance_valid(player):
+		audio.play_at(&"terminal", player.global_position, 180.0)
+	if hud != null and hud.has_method("refresh"):
+		hud.refresh()
+	return mode
+
+
+## Act-3 escalation switch (kept explicit so missions can drive it).
+func set_act3(active: bool) -> void:
+	act3_active = active
+	if squad != null:
+		squad.set_act3(active)
 
 
 func _spawn_mission_objects() -> void:
@@ -574,6 +721,7 @@ func _on_mission_failed(reason: String) -> void:
 # --------------------------------------------------------------------- HUD ---
 
 func _process(delta: float) -> void:
+	_poll_weapon_input()
 	if weapons != null:
 		weapons.tick(delta)
 	if player != null and not security_cameras.is_empty():

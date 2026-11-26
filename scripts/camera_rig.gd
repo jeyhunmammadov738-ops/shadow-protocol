@@ -29,6 +29,12 @@ const FOV_SPRINT: float = 77.0
 const FOV_DAMPING: float = 5.0
 const BLOCKED_PITCH: float = -0.95
 const BLOCKED_RATIO: float = 0.9
+## 3D-10: the lift-over used to oscillate at wall edges (blocked -> lift ->
+## clear -> lower -> blocked), which pumped the camera and made the framing
+## test flaky. The lift is now latched until the player actually moves away
+## or turns, which is also how a hand-animated camera behaves.
+const LIFT_RESET_DISTANCE: float = 48.0
+const LIFT_RESET_YAW: float = 0.35
 const SPRING_MARGIN: float = 8.0
 const FALLBACK_RIGHT_ZONE_RATIO: float = 0.45
 
@@ -51,6 +57,23 @@ var _mouse_dragging: bool = false
 var _target_sprinting: bool = false
 
 @onready var _spring: SpringArm3D = $SpringArm3D
+var _excluded: Dictionary = {}
+var _lift_active: bool = false
+var _lift_pos: Vector3 = Vector3.ZERO
+var _lift_yaw: float = 0.0
+
+
+## Keeps a physics body out of the camera's spring collision set.
+func exclude_body(body: Node) -> void:
+	if body == null or not (body is CollisionObject3D):
+		return
+	if _spring == null:
+		return
+	var rid: RID = body.get_rid()
+	if _excluded.has(rid):
+		return
+	_excluded[rid] = true
+	_spring.add_excluded_object(rid)
 
 
 func _ready() -> void:
@@ -60,6 +83,10 @@ func _ready() -> void:
 		# Tighter margin keeps the camera off walls without a visible pop.
 		_spring.margin = 4.0
 		_spring.collision_mask = 1
+		# 3D-10: actors share layer 1 with the world, so a guard walking
+		# behind the player used to compress the spring arm. Exclude actor
+		# bodies explicitly; walls and props still block the camera.
+		_excluded.clear()
 		var body := get_parent() as CollisionObject3D
 		if body != null:
 			_spring.add_excluded_object(body.get_rid())
@@ -97,7 +124,15 @@ func _process(delta: float) -> void:
 	if _spring == null:
 		return
 	var hit: float = _spring.get_hit_length()
-	var target: float = BLOCKED_PITCH if hit < SPRING_LENGTH * BLOCKED_RATIO else pitch
+	if not _lift_active:
+		if hit < SPRING_LENGTH * BLOCKED_RATIO:
+			_lift_active = true
+			_lift_pos = global_position
+			_lift_yaw = yaw
+	elif global_position.distance_to(_lift_pos) > LIFT_RESET_DISTANCE \
+			or absf(angle_difference(_lift_yaw, yaw)) > LIFT_RESET_YAW:
+		_lift_active = false
+	var target: float = BLOCKED_PITCH if _lift_active else pitch
 	_effective_pitch = lerpf(_effective_pitch, target, minf(1.0, 8.0 * delta))
 	# Damped yaw/pitch: steering feels fluid instead of snapping.
 	_yaw_smooth = lerp_angle(_yaw_smooth, yaw, minf(1.0, YAW_DAMPING * delta))

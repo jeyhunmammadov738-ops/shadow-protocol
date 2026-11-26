@@ -46,10 +46,10 @@ ok "ZIP archive integrity"
 # 2. Package identity and version metadata.
 BADGING="$($AAPT2 dump badging "$APK")" || fail "aapt2 cannot read the APK"
 echo "$BADGING" | grep -q "package: name='$EXPECTED_PACKAGE'" || fail "unexpected package id"
-echo "$BADGING" | grep -q "versionCode='5'" || fail "unexpected versionCode"
-echo "$BADGING" | grep -q "versionName='0.4.0'" || fail "unexpected versionName"
+echo "$BADGING" | grep -q "versionCode='6'" || fail "unexpected versionCode"
+echo "$BADGING" | grep -q "versionName='0.5.0'" || fail "unexpected versionName"
 echo "$BADGING" | grep -q "native-code: 'arm64-v8a'" || fail "expected arm64-v8a native code"
-ok "package/version metadata ($EXPECTED_PACKAGE 0.4.0/5, arm64-v8a)"
+ok "package/version metadata ($EXPECTED_PACKAGE 0.5.0/6, arm64-v8a)"
 
 # 3. Signature validity and schemes.
 "$APKSIGNER" verify "$APK" >/dev/null 2>&1 || fail "apksigner: signature verification failed"

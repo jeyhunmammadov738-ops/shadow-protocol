@@ -15,6 +15,16 @@ const RETICLE_IDLE: Color = Color(0.55, 0.90, 0.95, 0.55)
 const RETICLE_TARGET: Color = Color(0.98, 0.72, 0.28, 0.95)
 
 var main: Node = null
+## Phase 3D-10 additions: weapon panel + SectorBlueprint, built in code so
+## the existing hud3d.tscn node tree stays untouched.
+var weapon_panel: PanelContainer = null
+var weapon_name_label: Label = null
+var weapon_ammo_label: Label = null
+var weapon_mode_label: Label = null
+var weapon_slots_label: Label = null
+var blueprint: SectorBlueprint = null
+var weapon_text: String = ""
+var blueprint_cells: int = 0
 
 @onready var visibility_meter: Control = $VisibilityMeter
 @onready var detection_meter: Control = $DetectionMeter
@@ -40,6 +50,8 @@ func bind(scene: Node) -> void:
 	main = scene
 	if main == null:
 		return
+	if blueprint != null:
+		blueprint.bind(main)
 	if main.has_signal("hud_changed"):
 		if not main.hud_changed.is_connected(refresh):
 			main.hud_changed.connect(refresh)
@@ -51,6 +63,54 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	prompt_label.text = PROMPT_IDLE
 	reticle_dot.color = RETICLE_IDLE
+	_build_weapon_panel()
+	_build_blueprint()
+
+
+func _build_weapon_panel() -> void:
+	weapon_panel = PanelContainer.new()
+	weapon_panel.name = "WeaponPanel"
+	weapon_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	weapon_panel.anchor_left = 0.0
+	weapon_panel.anchor_top = 1.0
+	weapon_panel.anchor_right = 0.0
+	weapon_panel.anchor_bottom = 1.0
+	weapon_panel.offset_left = 18.0
+	weapon_panel.offset_top = -108.0
+	weapon_panel.offset_right = 258.0
+	weapon_panel.offset_bottom = -18.0
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	weapon_name_label = _mk_label(box, "WEAPON", 15, Palette.HUD_TEXT)
+	weapon_ammo_label = _mk_label(box, "20 / 60", 20, Palette.INTERACTIVE)
+	weapon_mode_label = _mk_label(box, "SEMI", 13, Palette.INTERACTIVE)
+	weapon_slots_label = _mk_label(box, "1 2 3 4 5 6", 12, Palette.HUD_TEXT)
+	weapon_panel.add_child(box)
+	add_child(weapon_panel)
+
+
+func _mk_label(parent: Node, text: String, size_px: int, color: Color) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size_px)
+	l.modulate = color
+	parent.add_child(l)
+	return l
+
+
+func _build_blueprint() -> void:
+	blueprint = SectorBlueprint.new()
+	blueprint.name = "SectorBlueprint"
+	blueprint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	blueprint.anchor_left = 1.0
+	blueprint.anchor_top = 0.0
+	blueprint.anchor_right = 1.0
+	blueprint.anchor_bottom = 0.0
+	blueprint.offset_left = -186.0
+	blueprint.offset_top = 18.0
+	blueprint.offset_right = -18.0
+	blueprint.offset_bottom = 186.0
+	add_child(blueprint)
 
 
 func _process(_delta: float) -> void:
@@ -82,14 +142,54 @@ func refresh() -> void:
 		status_extraction.modulate = Palette.EXTRACTION if extraction_available else Palette.EXTRACTION_LOCKED
 		status_state.text = "STATE %s" % _state_name(int(mission.state))
 		status_state.modulate = Palette.HUD_TEXT if mission.state == MissionManager.State.ACTIVE else Palette.INTERACTIVE
+	_refresh_weapon()
 	prompt_text = main.interaction_hint() if main.has_method("interaction_hint") else PROMPT_IDLE
 	prompt_label.text = prompt_text
 	prompt_label.modulate = Palette.INTERACTIVE
 	reticle_dot.color = RETICLE_TARGET if prompt_text != PROMPT_IDLE else RETICLE_IDLE
 
 
+## Live weapon readout: name/slot, magazine/reserve, fire mode, reload state
+## and the owned-slot strip. Driven by the real WeaponSystem, never stubs.
+func _refresh_weapon() -> void:
+	if weapon_panel == null:
+		return
+	var weapons = main.get("weapons")
+	if weapons == null:
+		weapon_panel.visible = false
+		return
+	weapon_panel.visible = true
+	var spec: Dictionary = weapons.spec()
+	var st: Dictionary = weapons.state()
+	var reloading: bool = weapons.is_reloading()
+	weapon_name_label.text = "%d  %s" % [int(spec["slot"]), String(spec["short"])]
+	weapon_ammo_label.text = "%d / %d" % [int(st["ammo"]), int(st["reserve"])]
+	weapon_ammo_label.modulate = Palette.FAILURE if int(st["ammo"]) == 0 else Palette.INTERACTIVE
+	if reloading:
+		weapon_mode_label.text = "RELOADING"
+		weapon_mode_label.modulate = Palette.FAILURE
+	else:
+		weapon_mode_label.text = weapons.mode_label()
+		weapon_mode_label.modulate = Palette.INTERACTIVE
+	var strip: String = ""
+	for id: StringName in WeaponSystem.SLOT_IDS:
+		var owned: bool = bool(weapons.state(id)["owned"])
+		var slot: int = int(WeaponSystem.SPECS[id]["slot"])
+		var mark: String = str(slot) if owned else "-"
+		if id == weapons.current_id:
+			mark = "[%s]" % mark
+		strip += mark + " "
+	weapon_slots_label.text = strip.strip_edges()
+	weapon_text = "%s %s" % [weapon_name_label.text, weapon_ammo_label.text]
+	blueprint_cells = blueprint.cells_drawn if blueprint != null else 0
+
+
 ## Hides the HUD (used while the mission overlay owns the screen).
 func set_hud_visible(visible_now: bool) -> void:
+	if weapon_panel != null:
+		weapon_panel.visible = visible_now
+	if blueprint != null:
+		blueprint.visible = visible_now
 	$StatusPanel.visible = visible_now
 	visibility_meter.visible = visible_now
 	detection_meter.visible = visible_now

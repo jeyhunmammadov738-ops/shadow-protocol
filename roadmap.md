@@ -1256,3 +1256,44 @@ budget). The web "camera mode" stays skipped per its removal in web commit
 Evidence: 3D-9 58/58, 3D-8 25/25, touch 24/24, 3D-6 38/38, 3D-5 49/49,
 3D-4 32/32, 3D-3 20/20, 3D-2 50/50, 3D-1 33/33, 2D smoke 297/297, benchmark
 14/14, host 136/136, validate 15 steps exit 0. Version 0.4.0 / versionCode 5.
+
+## Phase 3D-10 — Playable weapons, enemy reactions, audio, HUD (2026-11-26)
+
+Phase 3D-9 shipped the systems; this phase makes them playable and gives the
+enemy side its missing reactions. Source of truth: the authoritative web repo
+`jeyhunmammadov738-ops/shadow-protocol-web` (read-only remote inspection, no
+clone, never modified).
+
+- **Inputs**: `fire` (mouse + Enter), `reload` (R) and `cycle_fire_mode` (F)
+  actions in `project.godot`; touch FIRE / RELOAD / MODE buttons in
+  `mobile_controls.gd`, all owned through `is_point_owned` so the joystick and
+  the camera drag zone keep working; verified non-overlapping at 1280x720,
+  2340x1080 and 2400x1080.
+- **Wiring**: `Main3D._poll_weapon_input` + `bind_weapon_controls` call the
+  same `fire_weapon()` / `reload_weapon()` / `cycle_fire_mode()` path, which
+  keeps per-weapon stealth noise, ammo, cooldown/burst/reload gates, haptics
+  and a hitscan against guards.
+- **HUD**: live weapon panel (slot + name, magazine/reserve, fire-mode label,
+  RELOADING state, owned-slot strip) and a live `SectorBlueprint` minimap
+  drawn with `Control._draw()` from the real level, doors, terminals,
+  extraction, guards and player.
+- **Enemy reactions**: guards take damage and go `downed` (with a body the
+  squad notices), radio callouts propagate ALERT through
+  `SquadDirector.broadcast_alert`, the director pairs a suppressor with a
+  flanker, guards use `CoverSystem.cover_positions()` to hunker down while
+  investigating, and Act-3 escalation closes the patrol loop and speeds it up.
+- **Audio**: `SpatialAudio` ports the web `computeSpatial` formula exactly
+  (quadratic-cubic rolloff, +/-0.85 pan clamp, near blend) plus a procedural
+  voice bank (suppressed/loud/rifle reports, three footstep surfaces, impact,
+  door, terminal, alarm). `FeedbackManager`'s five cues are untouched.
+- **Bugs found and fixed**: the third-person spring arm was compressed by
+  guards walking behind the player (actors moved to physics layer 2, camera
+  keeps mask 1 and also excludes actor RIDs), and the blocked-camera
+  lift-over oscillated at wall edges (now latched until the player moves 48
+  units or turns 0.35 rad). `tools/validate_project.sh` step labels were
+  normalised to 1..16 and its final echo now lists the real pipeline.
+
+Evidence: 3D-10 73/73, 3D-9 58/58, 3D-8 25/25, touch 24/24, 3D-6 38/38,
+3D-5 49/49, 3D-4 32/32, 3D-3 20/20, 3D-2 50/50, 3D-1 33/33, 2D smoke 297/297,
+benchmark 14/14, host 156/156, validate 16 steps exit 0. Version 0.5.0 /
+versionCode 6, same signing certificate.

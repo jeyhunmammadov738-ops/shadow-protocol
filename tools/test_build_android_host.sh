@@ -191,9 +191,9 @@ grep -q "test_3d_phase6.gd" "$ROOT/tools/validate_project.sh" && ok "phase-6 tes
 [ -f "$ROOT/tools/benchmark_3d.gd" ] && ok "benchmark_3d.gd exists" || bad "benchmark_3d.gd missing"
 grep -q "res://scenes/main3d.tscn" "$ROOT/project.godot" && ok "default main scene is the 3D scene" || bad "main scene not switched to 3D"
 [ -f "$ROOT/scenes/main.tscn" ] && ok "2D main.tscn still present" || bad "2D main.tscn missing"
-grep -q 'config/version="0.4.0"' "$ROOT/project.godot" && ok "project version metadata is 0.4.0" || bad "project version not 0.4.0"
-grep -q "^version/code=5" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 5" || bad "versionCode not 5"
-grep -q '^version/name="0.4.0"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.4.0" || bad "versionName not 0.4.0"
+grep -q 'config/version="0.5.0"' "$ROOT/project.godot" && ok "project version metadata is 0.5.0" || bad "project version not 0.5.0"
+grep -q "^version/code=6" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 6" || bad "versionCode not 6"
+grep -q '^version/name="0.5.0"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.5.0" || bad "versionName not 0.5.0"
 grep -q 'package/unique_name="com.shadowprotocol.game"' "$ROOT/export_presets.cfg" && ok "package name preserved" || bad "package name changed"
 grep -q "arm64-v8a=true" "$ROOT/export_presets.cfg" && ok "arm64-v8a target preserved" || bad "arm64-v8a target lost"
 grep -q "benchmark_3d.gd" "$ROOT/tools/validate_project.sh" && ok "3D benchmark wired into validation" || bad "benchmark not wired"
@@ -229,6 +229,27 @@ grep -q "noise_radius" "$ROOT/scripts/weapon_system.gd" && ok "weapon noise radi
 grep -q "func _spawn_facility" "$ROOT/scripts/main3d.gd" && ok "facility layer wired into main3d" || bad "facility layer not wired"
 grep -q "func fire_weapon" "$ROOT/scripts/main3d.gd" && ok "weapon firing wired to stealth noise" || bad "weapon firing not wired"
 grep -q "test_3d_phase9.gd" "$ROOT/tools/validate_project.sh" && ok "phase-9 wired into validation" || bad "phase-9 not wired"
+
+# --- Phase 3D-10 (playability, enemy reactions, audio, blueprint) ---
+for f in scripts/squad_director.gd scripts/spatial_audio.gd scripts/sector_blueprint.gd tools/test_3d_phase10.gd; do
+  [ -f "$ROOT/$f" ] && ok "3D-10 file present: $f" || bad "3D-10 file missing: $f"
+done
+grep -q '^fire={' "$ROOT/project.godot" && ok "fire input action bound" || bad "fire action missing"
+grep -q '^reload={' "$ROOT/project.godot" && ok "reload input action bound" || bad "reload action missing"
+grep -q '^cycle_fire_mode={' "$ROOT/project.godot" && ok "fire-mode input action bound" || bad "fire-mode action missing"
+grep -q '"fire":' "$ROOT/scripts/mobile_controls.gd" && ok "touch FIRE button exists" || bad "touch FIRE button missing"
+grep -q "bind_weapon_controls" "$ROOT/scripts/main3d.gd" && ok "touch weapon controls bound in main3d" || bad "touch weapon binding missing"
+grep -q "func reload_weapon" "$ROOT/scripts/main3d.gd" && ok "reload wired" || bad "reload not wired"
+grep -q "func cycle_fire_mode" "$ROOT/scripts/main3d.gd" && ok "fire-mode cycling wired" || bad "fire-mode cycling not wired"
+grep -q "STATE_DOWNED" "$ROOT/scripts/enemy3d.gd" && ok "guards have a downed state" || bad "downed state missing"
+grep -q "func take_damage" "$ROOT/scripts/enemy3d.gd" && ok "guards take damage" || bad "guard damage missing"
+grep -q "receive_squad_alert" "$ROOT/scripts/enemy3d.gd" && ok "squad alert propagation wired" || bad "squad propagation missing"
+grep -q "cover_positions" "$ROOT/scripts/enemy3d.gd" && ok "guards use cover positions" || bad "guard cover use missing"
+grep -q "set_act3" "$ROOT/scripts/enemy3d.gd" && ok "act-3 patrol escalation wired" || bad "act-3 escalation missing"
+grep -q "SectorBlueprint" "$ROOT/scripts/hud3d.gd" && ok "SectorBlueprint wired into the HUD" || bad "blueprint not wired"
+grep -q "weapon_panel" "$ROOT/scripts/hud3d.gd" && ok "weapon panel wired into the HUD" || bad "weapon panel missing"
+grep -q "test_3d_phase10.gd" "$ROOT/tools/validate_project.sh" && ok "phase-10 wired into validation" || bad "phase-10 not wired"
+grep -q "\[16/16\]" "$ROOT/tools/validate_project.sh" && ok "validation step labels normalised" || bad "validation labels stale"
 
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

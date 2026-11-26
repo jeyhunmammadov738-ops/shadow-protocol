@@ -16,26 +16,26 @@ if ! command -v "$GODOT_BIN" >/dev/null 2>&1; then
 fi
 echo "Using Godot: $($GODOT_BIN --version 2>&1 | head -n1)"
 
-echo "[1/16] Importing resources..."
+echo "[1/17] Importing resources..."
 "$GODOT_BIN" --headless --path "$ROOT" --import >"$LOG" 2>&1 || {
   tail -n 40 "$LOG"; echo "ERROR: resource import failed."; exit 1; }
 
-echo "[2/16] Running main scene headless for $FRAMES frames..."
+echo "[2/17] Running main scene headless for $FRAMES frames..."
 "$GODOT_BIN" --headless --path "$ROOT" --quit-after "$FRAMES" >"$LOG" 2>&1 || {
   tail -n 60 "$LOG"; echo "ERROR: headless run failed."; exit 1; }
 
-echo "[3/16] Scanning output for script and scene errors..."
+echo "[3/17] Scanning output for script and scene errors..."
 if grep -nEi "script error|parse error|failed to load" "$LOG"; then
   echo "ERROR: errors detected during headless run."; exit 1
 fi
 
-echo "[4/16] Running headless smoke test (movement, crouch, joystick, stealth)..."
+echo "[4/17] Running headless smoke test (movement, crouch, joystick, stealth)..."
 "$GODOT_BIN" --headless --path "$ROOT" res://tools/smoke_test.tscn >"$LOG" 2>&1 || {
   tail -n 40 "$LOG"; echo "ERROR: smoke test failed."; exit 1; }
 grep -q "SMOKE TEST: all checks passed" "$LOG" || {
   tail -n 40 "$LOG"; echo "ERROR: smoke test did not pass."; exit 1; }
 
-echo "[5/16] Running 3D phase-1 acceptance test (player, TPS camera, touch zones)..."
+echo "[5/17] Running 3D phase-1 acceptance test (player, TPS camera, touch zones)..."
 "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase1.gd >"$LOG" 2>&1 || {
   tail -n 60 "$LOG"; echo "ERROR: 3D phase-1 test failed."; exit 1; }
 grep -q "3D PHASE-1 TEST: all checks passed" "$LOG" || {
@@ -43,69 +43,75 @@ grep -q "3D PHASE-1 TEST: all checks passed" "$LOG" || {
 
 # Host-only Android build-script checks (P8-T2 naming/signing logic).
 if [ -x "$ROOT/tools/test_build_android_host.sh" ]; then
-  echo "[6/16] Running 3D phase-2 test (GridMap parity, collisions, spawn)..."
+  echo "[6/17] Running 3D phase-2 test (GridMap parity, collisions, spawn)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase2.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-2 test failed."; exit 1; }
   grep -E "3D PHASE-2 TEST:" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-2 test did not pass."; exit 1; }
 
-  echo "[7/16] Running 3D phase-3 test (stealth/noise 2D-3D parity, integration)..."
+  echo "[7/17] Running 3D phase-3 test (stealth/noise 2D-3D parity, integration)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase3.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-3 test failed."; exit 1; }
   grep -q "3D PHASE-3 TEST: all checks passed" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-3 parity did not pass."; exit 1; }
 
-  echo "[8/16] Running 3D phase-4 test (enemy FSM, vision LOS, noise, stress)..."
+  echo "[8/17] Running 3D phase-4 test (enemy FSM, vision LOS, noise, stress)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase4.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-4 test failed."; exit 1; }
   grep -E "3D PHASE-4 TEST:" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-4 test did not pass."; exit 1; }
 
-  echo "[9/16] Running 3D phase-5 test (mission objects, interaction, restarts)..."
+  echo "[9/17] Running 3D phase-5 test (mission objects, interaction, restarts)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase5.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-5 test failed."; exit 1; }
   grep -E "3D PHASE-5 TEST:" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-5 test did not pass."; exit 1; }
 
-  echo "[10/16] Running 3D phase-6 test (HUD, prompts, layout integrity, feedback)..."
+  echo "[10/17] Running 3D phase-6 test (HUD, prompts, layout integrity, feedback)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase6.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-6 test failed."; exit 1; }
   grep -E "3D PHASE-6 TEST:" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-6 test did not pass."; exit 1; }
 
-  echo "[11/16] Running 3D phase-10 test (weapons playable, enemy reactions, audio, blueprint)..."
+  echo "[12/17] Running 3D phase-10 test (weapons playable, enemy reactions, audio, blueprint)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase10.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-10 test failed."; exit 1; }
   grep -q "3D PHASE-10 TEST: all checks passed" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-10 test did not pass."; exit 1; }
 
-  echo "[12/16] Running 3D phase-9 test (weapons, cover, cameras, tripwires, facility)..."
+  echo "[13/17] Running 3D phase-11 test (guard return fire, player lethality, determinism)..."
+  "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase11.gd >"$LOG" 2>&1 || {
+    tail -n 60 "$LOG"; echo "ERROR: 3D phase-11 test failed."; exit 1; }
+  grep -q "3D PHASE-11 TEST: all checks passed" "$LOG" || {
+    tail -n 60 "$LOG"; echo "ERROR: 3D phase-11 test did not pass."; exit 1; }
+
+  echo "[13/17] Running 3D phase-9 test (weapons, cover, cameras, tripwires, facility)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase9.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-9 test failed."; exit 1; }
   grep -q "3D PHASE-9 TEST: all checks passed" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-9 test did not pass."; exit 1; }
 
-  echo "[13/16] Running 3D phase-8 test (visuals, camera overhaul, movement feel)..."
+  echo "[14/17] Running 3D phase-8 test (visuals, camera overhaul, movement feel)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase8.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-8 test failed."; exit 1; }
   grep -q "3D PHASE-8 TEST: all checks passed" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-8 test did not pass."; exit 1; }
 
-  echo "[14/16] Running 3D touch regression (simulated Android drag + loop)..."
+  echo "[15/17] Running 3D touch regression (simulated Android drag + loop)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_touch.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D touch regression failed."; exit 1; }
   grep -q "3D TOUCH TEST: all checks passed" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D touch regression did not pass."; exit 1; }
 
-  echo "[15/16] Running 3D benchmark (scenarios, leaks, draw discipline)..."
+  echo "[16/17] Running 3D benchmark (scenarios, leaks, draw discipline)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/benchmark_3d.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D benchmark failed."; exit 1; }
   grep -q "3D BENCH: all checks passed" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D benchmark did not pass."; exit 1; }
 
-  echo "[16/16] Running Android build host checks..."
+  echo "[17/17] Running Android build host checks..."
   bash "$ROOT/tools/test_build_android_host.sh" || {
     echo "ERROR: Android build host checks failed."; exit 1; }
 fi
 
-echo "OK: project validated headless (import + $FRAMES frames + 2D smoke + 3D phases 1-10, touch, benchmark, host checks)."
+echo "OK: project validated headless (import + $FRAMES frames + 2D smoke + 3D phases 1-11, touch, benchmark, host checks)."

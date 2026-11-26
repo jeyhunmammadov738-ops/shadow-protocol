@@ -111,14 +111,17 @@ func _scene() -> void:
 	_check(main.weapons.is_reloading(), "keyboard RELOAD starts a reload")
 	main.weapons.tick(2.0)
 	_check(int(main.weapons.state()["ammo"]) == 20, "reload refills the magazine")
+	# Keyboard path must produce a real mode change on a multi-mode weapon.
+	main.weapons.grant(&"mp5sd")
+	main.weapons.select(&"mp5sd")
 	var mode_before: int = main.weapons.current_mode()
 	Input.action_press("cycle_fire_mode")
 	await process_frame
 	Input.action_release("cycle_fire_mode")
-	main.weapons.grant(&"mp5sd")
-	main.weapons.select(&"mp5sd")
+	var mode_after: int = main.weapons.current_mode()
+	_check(mode_after != mode_before, "fire mode changes from the keyboard path (%d -> %d)" % [mode_before, mode_after])
 	main.cycle_fire_mode()
-	_check(main.weapons.current_mode() != mode_before or main.weapons.current_mode() == 0, "fire mode cycles from the keyboard path")
+	_check(main.weapons.current_mode() != mode_after, "a second cycle moves to the next mode again")
 
 	# --- touch fire / reload / mode ----------------------------------
 	var layer = main.touch_layer
@@ -223,14 +226,43 @@ func _scene() -> void:
 
 	# --- guards use cover --------------------------------------------
 	if witness != null and main.cover != null:
+		# Cover only exists next to walls and only counts when it breaks the
+		# line to the threat, so stand the guard off a wall face and put the
+		# threat on the far side of that wall.
+		var walls: Dictionary = main.level_data["wall_cells"]
+		var wall_cell := Vector2i.ZERO
+		var open_cell := Vector2i.ZERO
+		var dir := Vector2i.ZERO
+		var placed: bool = false
+		for candidate: Vector2i in walls.keys():
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var oc: Vector2i = candidate + d
+				if not walls.has(oc):
+					wall_cell = candidate
+					open_cell = oc
+					dir = d
+					placed = true
+					break
+			if placed:
+				break
+		var stand: Vector2i = open_cell + dir * 2
+		if walls.has(stand):
+			stand = open_cell
+		witness.global_position = main.level_root.cell_to_world(stand)
 		witness.state = Enemy3D.STATE_INVESTIGATING
-		witness.last_sound_position = witness.global_position + Vector3(120, 0, 0)
+		# Threat on the other side of the wall, so the wall is real cover.
+		witness.last_sound_position = main.level_root.cell_to_world(open_cell - dir * 3)
 		witness._cover_timer = 0.0
+		var spots: Array = main.cover.cover_positions(witness.global_position, witness.last_sound_position, 3)
+		_check(spots.size() > 0, "cover positions exist behind the wall (%d)" % spots.size())
+		var player_saved: Vector3 = main.player.global_position
+		main.player.global_position = player_saved + Vector3(0, 0, -4000)
 		var cover_before: int = witness.cover_moves
 		witness._decide(0.5)
-		_check(witness.cover_moves >= cover_before, "cover logic runs for investigating guards (%d moves)" % witness.cover_moves)
-		var spots: Array = main.cover.cover_positions(witness.global_position, witness.last_sound_position, 3)
-		_check(spots.size() > 0 or witness.cover_moves == cover_before, "cover positions are available to the AI")
+		main.player.global_position = player_saved
+		_check(witness.cover_moves > cover_before,
+			"an investigating guard actually moves to cover (%d -> %d)" % [cover_before, witness.cover_moves])
+		_check(spots.has(witness.current_target()), "the guard targets a real cover position")
 
 	# --- act 3 patrol ------------------------------------------------
 	var route_guard = main.enemies()[0]

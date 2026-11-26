@@ -40,6 +40,12 @@ var squad: SquadDirector = null
 var audio: SpatialAudio = null
 var act3_active: bool = false
 var shots_played: int = 0
+## Phase 3D-11: player health, guard return fire, melee timing.
+var health: PlayerHealth = null
+var guard_shots: int = 0
+var guard_hits_landed: int = 0
+var player_dead: bool = false
+var _pending_melee: Dictionary = {}
 var _enemies: Array = []
 var _level_lights: Array = []
 
@@ -60,6 +66,9 @@ func _ready() -> void:
 		player.set_stealth(stealth)
 	weapons = WeaponSystem.new()
 	cover = CoverSystem.new()
+	health = PlayerHealth.new()
+	health.damaged.connect(_on_player_damaged)
+	health.died.connect(_on_player_died)
 	squad = SquadDirector.new()
 	squad.name = "SquadDirector"
 	add_child(squad)
@@ -110,6 +119,10 @@ func load_layout(key: String) -> Dictionary:
 	_spawn_enemies()
 	_spawn_mission_objects()
 	_spawn_facility()
+	if health != null:
+		health.reset()
+	player_dead = false
+	_pending_melee = {}
 	_start_mission()
 	return level_data
 
@@ -239,6 +252,80 @@ func _spawn_lights(descriptor: Dictionary) -> void:
 
 # ------------------------------------------------------------------- guards ---
 
+## Resolves guard return fire each frame. Every gate lives in the guard
+## (LOS, spec range, reaction beat, dry magazine, friendly fire); this only
+## routes the result into noise, audio, cover and player damage.
+func _tick_guard_fire() -> void:
+	if player_dead or health == null or not is_instance_valid(player):
+		return
+	var target: Vector3 = player.global_position
+	var cover_factor: float = 1.0
+	if cover != null and cover.has_method("cover_factor"):
+		cover_factor = float(cover.cover_factor(target, Vector3.ZERO,
+			"crouching" in player and bool(player.crouching)))
+	for guard in enemies():
+		if not guard.has_method("fire_at_player"):
+			continue
+		var shot: Dictionary = guard.fire_at_player(target, cover_factor)
+		if shot.is_empty():
+			continue
+		guard_shots += 1
+		if stealth != null:
+			stealth.publish_noise(shot["from"], float(shot["noise_radius"]),
+				&"guard_shot", &"alarm", {"guard": true})
+		if audio != null:
+			_sync_audio_listener()
+			audio.play_at(&"shot_guard", shot["from"], float(shot["noise_radius"]))
+		if bool(shot["landed"]):
+			guard_hits_landed += 1
+			health.apply_hit(float(shot["damage"]), shot["from"], cover_factor)
+			if audio != null:
+				audio.play_at(&"impact", target, 240.0)
+			if feedback_manager != null:
+				feedback_manager.request_haptic(70)
+
+
+## A guard round that landed (emitted by the guard) - used by tests and the
+## HUD hit indicator; damage itself is applied in _tick_guard_fire.
+func _on_guard_shot_player(damage: float, from_position: Vector3) -> void:
+	if hud != null and hud.has_method("show_hit_direction") and is_instance_valid(player):
+		hud.show_hit_direction(from_position - player.global_position)
+
+
+func _on_player_damaged(_amount: float, from_position: Vector3) -> void:
+	if hud != null and hud.has_method("show_hit_direction") and is_instance_valid(player):
+		hud.show_hit_direction(from_position - player.global_position)
+	if audio != null:
+		audio.play_at(&"impact", from_position, 300.0)
+	if feedback_manager != null:
+		feedback_manager.play_event(&"warning")
+
+
+func _on_player_died() -> void:
+	player_dead = true
+	if mission != null and mission.state == MissionManager.State.ACTIVE:
+		mission._fail(&"KILLED IN ACTION")
+	if feedback_manager != null:
+		feedback_manager.play_event(&"failure")
+		feedback_manager.request_haptic(220)
+	if hud != null:
+		hud.show_failure("KILLED IN ACTION")
+
+
+## Melee damage is registered at the rig's impact frame, not on input.
+func _tick_melee(delta: float) -> void:
+	if _pending_melee.is_empty() or not is_instance_valid(player):
+		return
+	var rig: Node = player.get_node_or_null("Rig")
+	if rig == null or not rig.has_method("tick_melee"):
+		_pending_melee = {}
+		return
+	rig.tick_melee(delta)
+	if rig.melee_impact_frame():
+		_apply_shot_damage(_pending_melee)
+		_pending_melee = {}
+
+
 ## Keyboard / gamepad weapon input. Touch goes through the signals the
 ## mobile control layer emits, so both paths hit the same functions.
 func _poll_weapon_input() -> void:
@@ -297,6 +384,8 @@ func _spawn_enemies() -> void:
 		if squad != null:
 			squad.register_guard(enemy)
 		enemy.state_changed.connect(_on_guard_state_changed)
+		enemy.set_weapon(&"hk416")
+		enemy.shot_player.connect(_on_guard_shot_player)
 		_exclude_actor_from_camera(enemy)
 		_enemies.append(enemy)
 
@@ -408,6 +497,27 @@ func _clear_facility() -> void:
 	alarm_count = 0
 
 
+## With two or more guards alert, the closest to the threat becomes the
+## suppressor (holds and fires) and the rest flank. Mirrors SquadDirector.
+func _assign_combat_roles() -> void:
+	var alerted: Array = []
+	for guard in enemies():
+		if String(guard.get("state")) == "alert" and not guard.is_downed():
+			alerted.append(guard)
+	if alerted.is_empty():
+		return
+	var focus: Vector3 = alerted[0].get("last_known_player_position")
+	var suppressor = alerted[0]
+	var best: float = INF
+	for guard in alerted:
+		var d: float = guard.global_position.distance_to(focus)
+		if d < best:
+			best = d
+			suppressor = guard
+	for guard in alerted:
+		guard.set_suppressor_role(guard == suppressor)
+
+
 ## Actors must never compress the third-person camera spring arm.
 func _exclude_actor_from_camera(actor: Node) -> void:
 	if not is_instance_valid(player):
@@ -425,6 +535,7 @@ func _on_guard_state_changed(_from: StringName, to_state: StringName) -> void:
 	for guard in enemies():
 		if String(guard.get("state")) == "alert":
 			squad.broadcast_alert(guard.get("enemy_id"), guard.get("last_known_player_position"))
+			_assign_combat_roles()
 			break
 
 
@@ -465,7 +576,16 @@ func fire_weapon() -> Dictionary:
 	if feedback_manager != null:
 		feedback_manager.play_event(&"door" if bool(shot["suppressed"]) else &"warning")
 		feedback_manager.request_haptic(40)
-	_apply_shot_damage(shot)
+	if bool(shot["melee"]):
+		# Windup first; damage lands on the impact frame.
+		var rig: Node = player.get_node_or_null("Rig") if is_instance_valid(player) else null
+		if rig != null and rig.has_method("start_melee"):
+			rig.start_melee()
+			_pending_melee = shot
+		else:
+			_apply_shot_damage(shot)
+	else:
+		_apply_shot_damage(shot)
 	if hud != null and hud.has_method("refresh"):
 		hud.refresh()
 	return shot
@@ -724,6 +844,10 @@ func _process(delta: float) -> void:
 	_poll_weapon_input()
 	if weapons != null:
 		weapons.tick(delta)
+	if health != null:
+		health.tick(delta)
+	_tick_guard_fire()
+	_tick_melee(delta)
 	if player != null and not security_cameras.is_empty():
 		for cam in security_cameras:
 			if is_instance_valid(cam):

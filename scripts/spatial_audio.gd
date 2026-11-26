@@ -66,6 +66,7 @@ func _build_bank() -> void:
 	_bank[&"shot_suppressed"] = _make_noise(0.07, 0.16, 260.0)
 	_bank[&"shot_loud"] = _make_noise(0.16, 0.55, 140.0)
 	_bank[&"shot_rifle"] = _make_noise(0.22, 0.75, 105.0)
+	_bank[&"shot_guard"] = _make_noise(0.18, 0.62, 120.0)
 	_bank[&"impact"] = _make_noise(0.06, 0.30, 620.0)
 	_bank[&"step_concrete"] = _make_noise(0.045, 0.10, 420.0)
 	_bank[&"step_metal"] = _make_noise(0.055, 0.16, 900.0)

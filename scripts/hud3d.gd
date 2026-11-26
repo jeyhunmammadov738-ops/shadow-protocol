@@ -25,6 +25,14 @@ var weapon_slots_label: Label = null
 var blueprint: SectorBlueprint = null
 var weapon_text: String = ""
 var blueprint_cells: int = 0
+## Phase 3D-11: health readout, hit direction and damage flash.
+var health_label: Label = null
+var hit_indicator: Control = null
+var damage_flash: ColorRect = null
+var hud_scale: float = 1.0
+var health_text: String = ""
+var last_hit_angle: float = 0.0
+var hit_flash_left: float = 0.0
 
 @onready var visibility_meter: Control = $VisibilityMeter
 @onready var detection_meter: Control = $DetectionMeter
@@ -63,8 +71,11 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	prompt_label.text = PROMPT_IDLE
 	reticle_dot.color = RETICLE_IDLE
+	hud_scale = clampf(float(ProjectSettings.get_setting("shadow_protocol/hud_scale", 1.0)), 0.75, 1.6)
 	_build_weapon_panel()
 	_build_blueprint()
+	_build_health()
+	_build_damage_overlay()
 
 
 func _build_weapon_panel() -> void:
@@ -75,16 +86,16 @@ func _build_weapon_panel() -> void:
 	weapon_panel.anchor_top = 1.0
 	weapon_panel.anchor_right = 0.0
 	weapon_panel.anchor_bottom = 1.0
-	weapon_panel.offset_left = 18.0
-	weapon_panel.offset_top = -108.0
-	weapon_panel.offset_right = 258.0
-	weapon_panel.offset_bottom = -18.0
+	weapon_panel.offset_left = 18.0 * hud_scale
+	weapon_panel.offset_top = -108.0 * hud_scale
+	weapon_panel.offset_right = 258.0 * hud_scale
+	weapon_panel.offset_bottom = -18.0 * hud_scale
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
-	weapon_name_label = _mk_label(box, "WEAPON", 15, Palette.HUD_TEXT)
-	weapon_ammo_label = _mk_label(box, "20 / 60", 20, Palette.INTERACTIVE)
-	weapon_mode_label = _mk_label(box, "SEMI", 13, Palette.INTERACTIVE)
-	weapon_slots_label = _mk_label(box, "1 2 3 4 5 6", 12, Palette.HUD_TEXT)
+	weapon_name_label = _mk_label(box, "WEAPON", int(15 * hud_scale), Palette.HUD_TEXT)
+	weapon_ammo_label = _mk_label(box, "20 / 60", int(20 * hud_scale), Palette.INTERACTIVE)
+	weapon_mode_label = _mk_label(box, "SEMI", int(13 * hud_scale), Palette.INTERACTIVE)
+	weapon_slots_label = _mk_label(box, "1 2 3 4 5 6", int(12 * hud_scale), Palette.HUD_TEXT)
 	weapon_panel.add_child(box)
 	add_child(weapon_panel)
 
@@ -106,10 +117,10 @@ func _build_blueprint() -> void:
 	blueprint.anchor_top = 0.0
 	blueprint.anchor_right = 1.0
 	blueprint.anchor_bottom = 0.0
-	blueprint.offset_left = -186.0
-	blueprint.offset_top = 18.0
-	blueprint.offset_right = -18.0
-	blueprint.offset_bottom = 186.0
+	blueprint.offset_left = -186.0 * hud_scale
+	blueprint.offset_top = 18.0 * hud_scale
+	blueprint.offset_right = -18.0 * hud_scale
+	blueprint.offset_bottom = 186.0 * hud_scale
 	add_child(blueprint)
 
 
@@ -143,10 +154,72 @@ func refresh() -> void:
 		status_state.text = "STATE %s" % _state_name(int(mission.state))
 		status_state.modulate = Palette.HUD_TEXT if mission.state == MissionManager.State.ACTIVE else Palette.INTERACTIVE
 	_refresh_weapon()
+	_refresh_health()
 	prompt_text = main.interaction_hint() if main.has_method("interaction_hint") else PROMPT_IDLE
 	prompt_label.text = prompt_text
 	prompt_label.modulate = Palette.INTERACTIVE
 	reticle_dot.color = RETICLE_TARGET if prompt_text != PROMPT_IDLE else RETICLE_IDLE
+
+
+func _build_health() -> void:
+	var panel := PanelContainer.new()
+	panel.name = "HealthPanel"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.anchor_left = 0.0
+	panel.anchor_top = 1.0
+	panel.anchor_right = 0.0
+	panel.anchor_bottom = 1.0
+	panel.offset_left = 18.0 * hud_scale
+	panel.offset_top = (-108.0 - 46.0) * hud_scale
+	panel.offset_right = 258.0 * hud_scale
+	panel.offset_bottom = (-108.0 - 6.0) * hud_scale
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 0)
+	health_label = _mk_label(box, "HP 100  ARM 40", int(16 * hud_scale), Palette.HUD_TEXT)
+	panel.add_child(box)
+	add_child(panel)
+
+
+func _build_damage_overlay() -> void:
+	damage_flash = ColorRect.new()
+	damage_flash.name = "DamageFlash"
+	damage_flash.color = Color(0.95, 0.15, 0.15, 0.0)
+	damage_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	damage_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(damage_flash)
+	hit_indicator = Control.new()
+	hit_indicator.name = "HitIndicator"
+	hit_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hit_indicator.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hit_indicator.draw.connect(_draw_hit_indicator)
+	add_child(hit_indicator)
+
+
+## Shows where a hit came from, in screen space relative to the camera yaw.
+func show_hit_direction(world_dir: Vector3) -> void:
+	var yaw: float = 0.0
+	if main != null and main.has_method("get") and main.get("player") != null:
+		var rig: Node = main.player.get_node_or_null("CameraRig")
+		if rig != null and "yaw" in rig:
+			yaw = float(rig.yaw)
+	var local: Vector3 = world_dir.rotated(Vector3.UP, -yaw)
+	last_hit_angle = atan2(local.x, local.z)
+	hit_flash_left = 0.9
+	hit_indicator.queue_redraw()
+
+
+func _draw_hit_indicator() -> void:
+	if hit_flash_left <= 0.0:
+		return
+	var center := hit_indicator.size * 0.5
+	var radius: float = minf(hit_indicator.size.x, hit_indicator.size.y) * 0.22
+	var dir := Vector2(sin(last_hit_angle), -cos(last_hit_angle))
+	var alpha: float = clampf(hit_flash_left / 0.9, 0.0, 1.0)
+	var color := Color(1.0, 0.35, 0.3, 0.85 * alpha)
+	var p1 := center + dir * radius
+	var p2 := center + dir.rotated(0.16) * (radius + 26.0)
+	var p3 := center + dir.rotated(-0.16) * (radius + 26.0)
+	hit_indicator.draw_colored_polygon(PackedVector2Array([p1, p2, p3]), color)
 
 
 ## Live weapon readout: name/slot, magazine/reserve, fire mode, reload state
@@ -184,12 +257,37 @@ func _refresh_weapon() -> void:
 	blueprint_cells = blueprint.cells_drawn if blueprint != null else 0
 
 
+## Health readout, damage flash decay and hit indicator fade.
+func _refresh_health() -> void:
+	if health_label == null:
+		return
+	var hp = main.get("health")
+	if hp == null:
+		health_label.text = "HP --"
+		return
+	health_label.text = "HP %d  ARM %d" % [int(round(float(hp.health))), int(round(float(hp.armor)))]
+	health_label.modulate = Palette.FAILURE if hp.is_low() else Palette.HUD_TEXT
+	health_text = health_label.text
+	if damage_flash != null:
+		var want: float = 0.0
+		if not hp.alive:
+			want = 0.35
+		elif hit_flash_left > 0.0:
+			want = 0.22 * clampf(hit_flash_left / 0.9, 0.0, 1.0)
+		damage_flash.color.a = want
+	if hit_flash_left > 0.0:
+		hit_flash_left = maxf(0.0, hit_flash_left - get_process_delta_time())
+		hit_indicator.queue_redraw()
+
+
 ## Hides the HUD (used while the mission overlay owns the screen).
 func set_hud_visible(visible_now: bool) -> void:
 	if weapon_panel != null:
 		weapon_panel.visible = visible_now
 	if blueprint != null:
 		blueprint.visible = visible_now
+	if hit_indicator != null:
+		hit_indicator.visible = visible_now
 	$StatusPanel.visible = visible_now
 	visibility_meter.visible = visible_now
 	detection_meter.visible = visible_now

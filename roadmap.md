@@ -1217,3 +1217,42 @@ layout reload ("invalid previously freed instance"). Tests: new phase-8
 host 123/123, validate exit 0 (14 steps). Version 0.3.0 / versionCode 4.
 30-task roadmap unchanged (8 phases, 30/30); 3D programme: 8 phases + 1
 hotfix.
+
+## Phase 3D-9 — Web-parity port (2026-11-26)
+
+Source of truth: the private web build (shadow-protocol-web, React/Three.js).
+Read-only remote inspection via the GitHub API; no clone was created and the
+web repo was never modified. Ported in this phase (Priority 0 + the prop
+visuals it needs):
+
+- **Weapon system** (`scripts/weapon_system.gd`): all six weapons and slots
+  with the web build's own balance numbers — fire modes semi/burst/auto/melee,
+  magazine + reserve, reload duration, per-mode cooldowns, burst recovery,
+  noise radius, damage, recoil, hip/ADS spread, range, suppressed,
+  canDisableCctv, supportsEmpDarts, pickups and reserve caps.
+- **Cover mechanics** (`scripts/cover_system.gd`): wall-corner anchors,
+  waist-high low cover, WALL_COVER_FACTOR 0.62 / LOW_COVER_FACTOR 0.55, and
+  cover-seeking positions for the AI.
+- **Security cameras and laser tripwires** (`scripts/security_camera.gd`,
+  `scripts/laser_tripwire.gd`): sweep arc/speed, range, FOV, grid occlusion,
+  EMP disabling, on/off cycles with phase offsets, single-trip semantics.
+- **Facility entity data** (`scripts/facility_catalog.gd`): cameras,
+  tripwires, hide containers, breakers, vents, decoys and barricades derived
+  deterministically from each layout — the tile encoding is untouched, so
+  existing layouts and BFS reachability are unchanged.
+- **Prop visuals** (`scripts/prop_factory.gd`): every new entity is built
+  from Godot primitives, zero external assets.
+- **Integration**: Main3D owns the weapon system and cover graph, spawns and
+  ticks the facility layer, routes camera alarms and tripwire trips into the
+  existing alarm/feedback channel, and weapon fire publishes stealth noise at
+  the weapon's own radius.
+
+Deferred and documented: guard combat / downed bodies and Act-3 patrol
+(Priority 1), the ~3,500-line spatial audio engine and SectorBlueprint HUD
+(Priority 2), and PBR/bloom/volumetrics (Priority 3, excluded by the mobile
+budget). The web "camera mode" stays skipped per its removal in web commit
+9dd5048.
+
+Evidence: 3D-9 58/58, 3D-8 25/25, touch 24/24, 3D-6 38/38, 3D-5 49/49,
+3D-4 32/32, 3D-3 20/20, 3D-2 50/50, 3D-1 33/33, 2D smoke 297/297, benchmark
+14/14, host 136/136, validate 15 steps exit 0. Version 0.4.0 / versionCode 5.

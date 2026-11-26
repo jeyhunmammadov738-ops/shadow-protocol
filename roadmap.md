@@ -1341,3 +1341,32 @@ and 180-frame runs exit 0. Version 0.6.0 / versionCode 7.
 
 Still open: revive/carry for downed guards (deliberately deferred), no
 real-device FPS or latency evidence for 0.6.0.
+
+## Phase 3D-12 — Test-integrity and pipeline cleanup (2026-11-26)
+
+Cleanup pass only: no gameplay, balance or visual value changed.
+
+Fixed:
+- `tools/validate_project.sh` labels were `1..10, 12, 13, 13, 14, 15, 16, 17`.
+  Renumbered to a unique ascending `[1/17]`..`[17/17]` with the 3D-10 step at
+  11 and 3D-11 at 12; every gate, command and failure message untouched.
+- `tools/test_3d_phase11.gd` closed-door occlusion was `_check(true, ...)`, a
+  guaranteed pass. It now stages a real door object, closes it (the door drops
+  from world layer 1 to layer 0 when open), asserts the guard cannot fire and
+  that `fire_at_player` returns an empty Dictionary, then opens it and asserts
+  the firing line returns. The default layout has no door with open cells on
+  both sides, so the helper walks `layout_b` / `layout_c`, restores the original
+  layout, and prints `SKIP:` if no layout qualifies. It ran on `layout_b`.
+- Removed the `_digest.size() > 0` assertion: it could never fail, because
+  `_check()` appends to the digest.
+- Swept both suites for tautologies (`_check(true`, always-true disjunctions,
+  counters asserted without action): none left.
+
+Evidence (measured in this tree): phase-11 46 executed checks (43 + 3 door
+checks), phase-10 75 executed from 59 call sites (loop expansion), phase-1/2/
+3/4/5/6/8/9 = 33/50/20/32/49/38/25/58, touch 24, benchmark 14, 2D smoke 297,
+host 169/169, validate 17 steps exit 0. Version 0.6.1 / versionCode 8, same
+signing certificate.
+
+Deliberately open: revive/carry for downed guards, real device validation
+(ergonomics, audio latency, thermal), per-scenario device benchmarks.

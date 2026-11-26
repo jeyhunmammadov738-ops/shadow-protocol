@@ -73,13 +73,13 @@ if [ -x "$ROOT/tools/test_build_android_host.sh" ]; then
   grep -E "3D PHASE-6 TEST:" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-6 test did not pass."; exit 1; }
 
-  echo "[12/17] Running 3D phase-10 test (weapons playable, enemy reactions, audio, blueprint)..."
+  echo "[11/17] Running 3D phase-10 test (weapons playable, enemy reactions, audio, blueprint)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase10.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-10 test failed."; exit 1; }
   grep -q "3D PHASE-10 TEST: all checks passed" "$LOG" || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-10 test did not pass."; exit 1; }
 
-  echo "[13/17] Running 3D phase-11 test (guard return fire, player lethality, determinism)..."
+  echo "[12/17] Running 3D phase-11 test (guard return fire, player lethality, determinism)..."
   "$GODOT_BIN" --headless --path "$ROOT" --script res://tools/test_3d_phase11.gd >"$LOG" 2>&1 || {
     tail -n 60 "$LOG"; echo "ERROR: 3D phase-11 test failed."; exit 1; }
   grep -q "3D PHASE-11 TEST: all checks passed" "$LOG" || {

@@ -90,13 +90,12 @@ func _combat() -> void:
 	guard._fire_cd = 0.0
 	_check(not guard.can_fire_at(main.player.global_position), "a wall blocks the shot")
 	_check(guard.fire_at_player(main.player.global_position, 1.0, 0.0).is_empty(), "no round leaves the barrel through a wall")
-	# closed door between the two
-	if main.doors.size() > 0:
-		var door = main.doors[0]
-		if door.has_method("set_open") or "open" in door:
-			if "open" in door:
-				door.open = false
-			_check(true, "closed-door occlusion shares the same LOS gate as walls")
+	# --- closed door: a real door object, real physics layer -----------------
+	var door_tested: bool = await _door_occlusion(main)
+	if not door_tested:
+		print("SKIP: no layout offered a door with open cells on both sides, closed-door occlusion not tested")
+	guard = main.enemies()[0]
+	_stage(main, guard)
 
 	# 3. reaction beat
 	_stage(main, guard)
@@ -273,4 +272,67 @@ func _repeatability() -> void:
 		main.queue_free()
 		await process_frame
 	_check(results[0] == results[1], "two identical runs produce identical shot outcomes")
-	_check(_digest.size() > 0, "the suite records a result digest (%d entries)" % _digest.size())
+
+## Closed-door occlusion on the real door object. Doors sit on the world
+## collision layer while closed and drop to layer 0 when open, so the guard's
+## LOS ray must flip with the door state. Tries the current layout first, then
+## layout_b / layout_c, and always restores the layout it started from.
+func _door_occlusion(main) -> bool:
+	var original_layout: String = main.current_layout
+	var candidates: Array = [original_layout, "layout_b", "layout_c"]
+	var tested: bool = false
+	for layout_name in candidates:
+		if layout_name != main.current_layout:
+			main.load_layout(layout_name)
+			await physics_frame
+			await physics_frame
+		var walls: Dictionary = main.level_data["wall_cells"]
+		var guard = main.enemies()[0] if main.enemies().size() > 0 else null
+		if guard == null:
+			continue
+		for door in main.doors:
+			if not door.has_method("set_state") or not door.has_method("get_cell"):
+				continue
+			var door_cell: Vector2i = door.get_cell()
+			var side_a: Vector2i = door_cell + Vector2i(-1, 0)
+			var side_b: Vector2i = door_cell + Vector2i(1, 0)
+			if walls.has(side_a) or walls.has(side_b):
+				continue
+			_stage(main, guard)
+			door.set_state(false)
+			await physics_frame
+			await physics_frame
+			guard.global_position = main.level_root.cell_to_world(side_a)
+			main.player.global_position = main.level_root.cell_to_world(side_b)
+			guard.facing = Vector3(1, 0, 0)
+			guard._fire_cd = 0.0
+			guard._reaction_left = 0.0
+			guard._had_visual = true
+			guard.state = Enemy3D.STATE_ALERT
+			_check(not guard.can_fire_at(main.player.global_position),
+				"a closed door blocks the shot (%s)" % layout_name)
+			_check(guard.fire_at_player(main.player.global_position, 1.0, 0.0).is_empty(),
+				"no round leaves the barrel through a closed door (%s)" % layout_name)
+			door.set_state(true)
+			await physics_frame
+			await physics_frame
+			# The live AI may have downgraded itself while the door was shut,
+			# so re-assert the combat stance before the eligibility check.
+			guard.state = Enemy3D.STATE_ALERT
+			guard._reaction_left = 0.0
+			guard._had_visual = true
+			guard._fire_cd = 0.0
+			_check(guard.can_fire_at(main.player.global_position),
+				"an opened door restores the firing line (%s)" % layout_name)
+			door.set_state(false)
+			await physics_frame
+			await physics_frame
+			tested = true
+			break
+		if tested:
+			break
+	if main.current_layout != original_layout:
+		main.load_layout(original_layout)
+		await physics_frame
+		await physics_frame
+	return tested

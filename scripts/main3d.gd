@@ -40,6 +40,8 @@ var squad: SquadDirector = null
 var audio: SpatialAudio = null
 var act3_active: bool = false
 var shots_played: int = 0
+## Phase 3D-13 "Stylized Neon Noir" set dressing (panels, strips, fog, pools).
+var dressing: NeonDressing = null
 ## Phase 3D-11: player health, guard return fire, melee timing.
 var health: PlayerHealth = null
 var guard_shots: int = 0
@@ -75,6 +77,9 @@ func _ready() -> void:
 	audio = SpatialAudio.new()
 	audio.name = "SpatialAudio"
 	add_child(audio)
+	dressing = NeonDressing.new()
+	dressing.name = "NeonDressing"
+	add_child(dressing)
 	feedback_manager = FeedbackManager.new()
 	feedback_manager.name = "FeedbackManager"
 	add_child(feedback_manager)
@@ -119,6 +124,7 @@ func load_layout(key: String) -> Dictionary:
 	_spawn_enemies()
 	_spawn_mission_objects()
 	_spawn_facility()
+	_apply_dressing()
 	if health != null:
 		health.reset()
 	player_dead = false
@@ -128,6 +134,17 @@ func load_layout(key: String) -> Dictionary:
 
 
 ## Guards currently alive in this scene (tests, future AI tooling).
+## Rebuilds the neon-noir dressing for the current layout (idempotent).
+func _apply_dressing() -> void:
+	if dressing == null:
+		return
+	var env: Environment = null
+	var world_env := get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if world_env != null:
+		env = world_env.environment
+	dressing.build(level_data, env)
+
+
 func enemies() -> Array:
 	var alive: Array = []
 	for e in _enemies:

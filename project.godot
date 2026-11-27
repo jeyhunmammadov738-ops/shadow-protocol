@@ -6,7 +6,7 @@ config_version=5
 [application]
 
 config/name="Shadow Protocol"
-config/version="0.6.1"
+config/version="0.7.0"
 config/description="Top-down tactical stealth: infiltrate, complete objectives, extract undetected."
 run/main_scene="res://scenes/main3d.tscn"
 config/features=PackedStringArray("4.7")

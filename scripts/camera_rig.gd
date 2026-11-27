@@ -13,22 +13,34 @@ extends Node3D
 ##   - Desktop: right-mouse drag.
 ## Rotation is clamped so the camera can never flip over the player.
 
-const PITCH_MIN: float = -1.05   # ~-60 deg, looking down
-const PITCH_MAX: float = 0.45    # ~+26 deg, looking up
+## 3D-13 framing: the device run showed a large empty dark band across the
+## top third (camera too low and level, pointing at the void). The rig is now
+## a shoulder TPS: head-height pivot, ~4.6 m back (project scale: the player
+## rig is 90 units tall, so 1 unit = 2 cm and 4-5 "units" = 200-250 world
+## units), a wide shoulder offset and a slight downward pitch so floor and
+## corridor dominate the frame.
+const PITCH_MIN: float = -0.96   # ~-55 deg, looking down
+const PITCH_MAX: float = 0.61    # ~+35 deg, looking up
 const YAW_SENSITIVITY: float = 0.006
 const PITCH_SENSITIVITY: float = 0.005
 const TOUCH_YAW_SENSITIVITY: float = 0.008
 const TOUCH_PITCH_SENSITIVITY: float = 0.008
-const SPRING_LENGTH: float = 170.0
-const SHOULDER_OFFSET: float = 26.0
-const MIN_CAM_DISTANCE: float = 58.0
+const SPRING_LENGTH: float = 230.0
+const SHOULDER_OFFSET: float = 40.0
+const MIN_CAM_DISTANCE: float = 90.0
 const YAW_DAMPING: float = 14.0
 const PITCH_DAMPING: float = 12.0
 const FOV_BASE: float = 68.0
 const FOV_SPRINT: float = 77.0
 const FOV_DAMPING: float = 5.0
+## 3D-13: with the longer shoulder arm the old lift (-0.95 rad, triggered at
+## 90% compression) fired constantly inside 48-unit corridors and pointed the
+## camera at the floor - the "empty frame" the owner saw. The lift is now a
+## gentle climb that only triggers when the arm is genuinely buried.
+## Steep enough to clear a 92-unit wall that sits 27 units behind the pivot
+## (atan(20/27) = 37 deg is the minimum; 54 deg clears it with margin).
 const BLOCKED_PITCH: float = -0.95
-const BLOCKED_RATIO: float = 0.9
+const BLOCKED_RATIO: float = 0.45
 ## 3D-10: the lift-over used to oscillate at wall edges (blocked -> lift ->
 ## clear -> lower -> blocked), which pumped the camera and made the framing
 ## test flaky. The lift is now latched until the player actually moves away
@@ -39,16 +51,20 @@ const SPRING_MARGIN: float = 8.0
 const FALLBACK_RIGHT_ZONE_RATIO: float = 0.45
 
 var yaw: float = 0.0
-var pitch: float = -0.26
+var pitch: float = -0.30
 ## Effective pitch actually applied: rises toward BLOCKED_PITCH when the
 ## spring arm is compressed, so a wall behind the player never leaves a
 ## collapsed, unusable view (device report: spawn camera against a wall).
-var _effective_pitch: float = -0.26
+var _effective_pitch: float = -0.30
 var _yaw_smooth: float = 0.0
-var _pitch_smooth: float = -0.26
+var _pitch_smooth: float = -0.30
 var _fov: float = 68.0
 
 @export var touch_layer_path: NodePath = NodePath("../../UI/TouchLayer")
+## Look sensitivity multiplier (settings-ready; 1.0 = tuned default).
+@export_range(0.3, 2.5, 0.05) var look_sensitivity: float = 1.0
+## Drags shorter than this are ignored so a resting thumb cannot spin the view.
+const TOUCH_DRAG_DEADZONE: float = 2.0
 
 var _touch_layer: Control = null
 var _touch_index: int = -1
@@ -90,12 +106,19 @@ func _ready() -> void:
 		var body := get_parent() as CollisionObject3D
 		if body != null:
 			_spring.add_excluded_object(body.get_rid())
-	# Over-the-shoulder framing: the capsule no longer hides the corridor
-	# centre, and the longer spring keeps a playable view even near walls.
-	var cam := _spring.get_node_or_null("Camera3D") as Camera3D
-	if cam != null:
-		cam.position.x = SHOULDER_OFFSET
+	# Over-the-shoulder framing. The lateral offset lives on the ARM, not on
+	# the camera child: SpringArm3D rewrites its child's position every frame,
+	# so the old `cam.position.x` assignment was silently discarded (found in
+	# 3D-13 - the "shoulder" camera had always been dead centre).
+	_spring.position = Vector3(SHOULDER_OFFSET, 0.0, 0.0)
 	apply_rotation()
+
+
+## Lateral shoulder offset actually applied to the arm (tests, settings).
+func shoulder_offset() -> float:
+	if _spring == null:
+		return 0.0
+	return _spring.position.x
 
 
 ## Sprint drives the subtle FOV widen.
@@ -156,6 +179,8 @@ func apply_rotation() -> void:
 
 ## Rotates the camera by the given deltas (radians) with pitch clamping.
 func rotate_camera(delta_yaw: float, delta_pitch: float) -> void:
+	delta_yaw *= look_sensitivity
+	delta_pitch *= look_sensitivity
 	yaw = wrapf(yaw - delta_yaw, -PI, PI)
 	pitch = clampf(pitch - delta_pitch, PITCH_MIN, PITCH_MAX)
 	apply_rotation()
@@ -191,7 +216,12 @@ func _input(event: InputEvent) -> void:
 		if event.index == _touch_index:
 			var delta: Vector2 = event.position - _last_touch_pos
 			_last_touch_pos = event.position
-			rotate_camera(delta.x * TOUCH_YAW_SENSITIVITY, delta.y * TOUCH_PITCH_SENSITIVITY)
+			# Deadzone: a resting thumb produces sub-pixel jitter that used to
+			# spin the view. Sensitivity is a single knob for both axes.
+			if delta.length() < TOUCH_DRAG_DEADZONE:
+				return
+			rotate_camera(delta.x * TOUCH_YAW_SENSITIVITY * look_sensitivity,
+				delta.y * TOUCH_PITCH_SENSITIVITY * look_sensitivity)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
 		_mouse_dragging = event.pressed
 	elif event is InputEventMouseMotion and _mouse_dragging:

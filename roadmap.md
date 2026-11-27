@@ -1370,3 +1370,41 @@ signing certificate.
 
 Deliberately open: revive/carry for downed guards, real device validation
 (ergonomics, audio latency, thermal), per-scenario device benchmarks.
+
+## Phase 3D-13 — Visual, camera and touch-ergonomics pass (2026-11-27)
+
+Owner direction: **Stylized Neon Noir** and a **hybrid joystick**. No stealth,
+AI, weapon, mission, health or damage logic was touched.
+
+Shipped:
+- **Shoulder-TPS camera.** The 3D-8 "over-the-shoulder" claim was false:
+  `cam.position.x` was overwritten by SpringArm3D every frame, so the offset
+  never applied. The offset now lives on the arm origin
+  (`_spring.position.x = 40`), pitch defaults to -0.30 rad, spring length is
+  230 (about 4.6 m at the project scale of 2 cm per unit) and the blocked-lift
+  only fires under 45% compression. Verified analytically at 1280x720,
+  2340x1080 and 2400x1080: the horizon sits in the top of the frame
+  (ndc_y >= 0.35) and a corridor point 180 units ahead stays on screen.
+- **Humanoid rigs.** 21 meshes, 4 shared materials: tapered torso, neck, head,
+  tri-focal emissive visor, shoulder masses, elbows, knees, hands, boots,
+  jacket and chest strip. Pose states idle/walk/sprint/crouch/hit/downed/melee
+  with eased blending; `animate(..., manual)` lets scripted sequences hold a
+  pose.
+- **Neon dressing layer** (`scripts/neon_dressing.gd`): wall panel value
+  variation, floor grid, floor scuffs, door/terminal emissive strips, glow
+  pools, ceiling beams, distance fog and 6 shadowless omni pools. Budget
+  guard: 900 dressing meshes, 6 real lights; measured 266 meshes in 6
+  MultiMesh batches and 1 real light on the legacy layout.
+- **Hybrid joystick**: always-visible base at bottom-left, base relocates to
+  any press on the left half, eases home on release. Right cluster rebuilt
+  (FIRE 60 / USE 46 / RLD 34 / MODE 32 / SPRINT 42 / CROUCH 40) with no
+  overlap at the three verified aspect ratios.
+- **HUD**: weapon panel moved out of the stick zone to the upper-left
+  (offset_top 196*scale), default `hud_scale` 1.3 (clamp 0.9-1.8).
+
+Evidence: phase-13 suite 89/89 (camera framing at 3 aspects, pose transitions,
+melee impact frame, dressing budget, stick home/dynamic/home, touch ownership,
+no button overlap, HUD scale bounds). Pipeline is 18 steps, exit 0.
+
+Deferred: revive/carry for downed guards, real-device FPS/thermal numbers
+(no device run this phase).

@@ -191,9 +191,9 @@ grep -q "test_3d_phase6.gd" "$ROOT/tools/validate_project.sh" && ok "phase-6 tes
 [ -f "$ROOT/tools/benchmark_3d.gd" ] && ok "benchmark_3d.gd exists" || bad "benchmark_3d.gd missing"
 grep -q "res://scenes/main3d.tscn" "$ROOT/project.godot" && ok "default main scene is the 3D scene" || bad "main scene not switched to 3D"
 [ -f "$ROOT/scenes/main.tscn" ] && ok "2D main.tscn still present" || bad "2D main.tscn missing"
-grep -q 'config/version="0.6.1"' "$ROOT/project.godot" && ok "project version metadata is 0.6.1" || bad "project version not 0.6.1"
-grep -q "^version/code=8" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 8" || bad "versionCode not 8"
-grep -q '^version/name="0.6.1"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.6.1" || bad "versionName not 0.6.1"
+grep -q 'config/version="0.7.0"' "$ROOT/project.godot" && ok "project version metadata is 0.7.0" || bad "project version not 0.7.0"
+grep -q "^version/code=9" "$ROOT/export_presets.cfg" && ok "versionCode bumped to 9" || bad "versionCode not 9"
+grep -q '^version/name="0.7.0"' "$ROOT/export_presets.cfg" && ok "versionName bumped to 0.7.0" || bad "versionName not 0.7.0"
 grep -q 'package/unique_name="com.shadowprotocol.game"' "$ROOT/export_presets.cfg" && ok "package name preserved" || bad "package name changed"
 grep -q "arm64-v8a=true" "$ROOT/export_presets.cfg" && ok "arm64-v8a target preserved" || bad "arm64-v8a target lost"
 grep -q "benchmark_3d.gd" "$ROOT/tools/validate_project.sh" && ok "3D benchmark wired into validation" || bad "benchmark not wired"
@@ -249,7 +249,7 @@ grep -q "set_act3" "$ROOT/scripts/enemy3d.gd" && ok "act-3 patrol escalation wir
 grep -q "SectorBlueprint" "$ROOT/scripts/hud3d.gd" && ok "SectorBlueprint wired into the HUD" || bad "blueprint not wired"
 grep -q "weapon_panel" "$ROOT/scripts/hud3d.gd" && ok "weapon panel wired into the HUD" || bad "weapon panel missing"
 grep -q "test_3d_phase10.gd" "$ROOT/tools/validate_project.sh" && ok "phase-10 wired into validation" || bad "phase-10 not wired"
-grep -q "\[16/17\]" "$ROOT/tools/validate_project.sh" && ok "validation step labels normalised" || bad "validation labels stale"
+grep -q "\[17/18\]" "$ROOT/tools/validate_project.sh" && ok "validation step labels normalised" || bad "validation labels stale"
 
 # --- Phase 3D-11 (guard return fire, player lethality) ---
 for f in scripts/player_health.gd tools/test_3d_phase11.gd; do
@@ -265,7 +265,7 @@ grep -q "func show_hit_direction" "$ROOT/scripts/hud3d.gd" && ok "HUD shows hit 
 grep -q "hud_scale" "$ROOT/scripts/hud3d.gd" && ok "HUD scale setting honoured" || bad "HUD scale missing"
 grep -q "MELEE_WINDUP" "$ROOT/scripts/character_rig.gd" && ok "melee has windup/impact timing" || bad "melee timing missing"
 grep -q "test_3d_phase11.gd" "$ROOT/tools/validate_project.sh" && ok "phase-11 wired into validation" || bad "phase-11 not wired"
-grep -q "\[17/17\]" "$ROOT/tools/validate_project.sh" && ok "validation has 17 labelled steps" || bad "validation step count wrong"
+grep -q "\[18/18\]" "$ROOT/tools/validate_project.sh" && ok "validation has 18 labelled steps" || bad "validation step count wrong"
 
 echo "Android build/signing host checks: $pass PASS / $failp FAIL"
 [ "$failp" -eq 0 ]

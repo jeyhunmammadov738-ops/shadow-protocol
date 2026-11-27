@@ -101,7 +101,11 @@ func _run() -> void:
 	_check(cam.z > pivot.z + 50.0, "camera sits BEHIND the player (+Z at yaw 0)")
 	_check(cam.y > pivot.y + 10.0, "camera sits ABOVE the pivot")
 	var dist: float = cam.distance_to(pivot)
-	_check(dist > 80.0 and dist <= spring.spring_length + 1.0,
+	# The arm plus the lateral shoulder offset form a right triangle, so the
+	# pivot-to-camera distance can legitimately exceed the spring length.
+	var max_dist: float = sqrt(spring.spring_length * spring.spring_length
+		+ rig.shoulder_offset() * rig.shoulder_offset()) + 1.0
+	_check(dist > 80.0 and dist <= max_dist,
 		"camera distance %.1f within spring length %.1f" % [dist, spring.spring_length])
 	for guard in main.enemies():
 		guard.set_physics_process(true)
@@ -158,9 +162,12 @@ func _run() -> void:
 	if touch_layer != null:
 		touch_layer.visible = true
 		var screen: Vector2 = main.get_viewport().get_visible_rect().size
-		var interact_center: Vector2 = screen - Vector2(110.0, 120.0)
-		var crouch_center: Vector2 = screen - Vector2(226.0, 76.0)
-		var sprint_center: Vector2 = screen - Vector2(196.0, 192.0)
+		# Ask the layer for its live button centres: hardcoding offsets made
+		# this check fail every time the ergonomics layout changed (3D-13).
+		touch_layer._layout_buttons()
+		var interact_center: Vector2 = touch_layer.button_center("interact")
+		var crouch_center: Vector2 = touch_layer.button_center("crouch")
+		var sprint_center: Vector2 = touch_layer.button_center("sprint")
 		_check(not rig.accepts_touch(interact_center), "USE button touch is excluded from camera drag")
 		_check(not rig.accepts_touch(crouch_center), "CROUCH button touch is excluded from camera drag")
 		_check(not rig.accepts_touch(sprint_center), "SPRINT button touch is excluded from camera drag")

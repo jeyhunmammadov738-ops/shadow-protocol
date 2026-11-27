@@ -196,12 +196,16 @@ func take_damage(amount: float, source_pos: Vector3 = Vector3.ZERO) -> Dictionar
 		velocity = Vector3.ZERO
 		if rig != null and rig.has_method("set_downed"):
 			rig.set_downed(true)
+		if rig != null and rig.has_method("desaturate_for_downed"):
+			rig.desaturate_for_downed()
 		_update_visual_state()
 		state_changed.emit(STATE_ALERT, STATE_DOWNED)
 		if squad != null and squad.has_method("report_downed"):
 			squad.report_downed(self)
 	else:
 		# Being shot points the guard at the shooter even without line of sight.
+		if rig != null and rig.has_method("play_hit_stagger"):
+			rig.play_hit_stagger()
 		last_sound_position = source_pos
 		_investigation_score = 999.0
 		if state != STATE_ALERT:

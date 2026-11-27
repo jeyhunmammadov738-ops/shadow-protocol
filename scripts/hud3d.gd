@@ -71,7 +71,9 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	prompt_label.text = PROMPT_IDLE
 	reticle_dot.color = RETICLE_IDLE
-	hud_scale = clampf(float(ProjectSettings.get_setting("shadow_protocol/hud_scale", 1.0)), 0.75, 1.6)
+	# 3D-13: the device run showed 12-20 px HUD text that was barely legible.
+	# The phone default is now 1.3x (still clamped, still overridable).
+	hud_scale = clampf(float(ProjectSettings.get_setting("shadow_protocol/hud_scale", 1.3)), 0.9, 1.8)
 	_build_weapon_panel()
 	_build_blueprint()
 	_build_health()
@@ -82,20 +84,23 @@ func _build_weapon_panel() -> void:
 	weapon_panel = PanelContainer.new()
 	weapon_panel.name = "WeaponPanel"
 	weapon_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Top-left, well clear of the bottom-left hybrid stick (home at 150 px from
+	# the left edge, 150 px from the bottom) and its 110 px touch radius.
 	weapon_panel.anchor_left = 0.0
-	weapon_panel.anchor_top = 1.0
+	weapon_panel.anchor_top = 0.0
 	weapon_panel.anchor_right = 0.0
-	weapon_panel.anchor_bottom = 1.0
-	weapon_panel.offset_left = 18.0 * hud_scale
-	weapon_panel.offset_top = -108.0 * hud_scale
-	weapon_panel.offset_right = 258.0 * hud_scale
-	weapon_panel.offset_bottom = -18.0 * hud_scale
+	weapon_panel.anchor_bottom = 0.0
+	weapon_panel.offset_left = 14.0 * hud_scale
+	weapon_panel.offset_top = 196.0 * hud_scale
+	weapon_panel.offset_right = 268.0 * hud_scale
+	weapon_panel.offset_bottom = 296.0 * hud_scale
+	weapon_panel.modulate = Color(1, 1, 1, 0.94)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
-	weapon_name_label = _mk_label(box, "WEAPON", int(15 * hud_scale), Palette.HUD_TEXT)
-	weapon_ammo_label = _mk_label(box, "20 / 60", int(20 * hud_scale), Palette.INTERACTIVE)
-	weapon_mode_label = _mk_label(box, "SEMI", int(13 * hud_scale), Palette.INTERACTIVE)
-	weapon_slots_label = _mk_label(box, "1 2 3 4 5 6", int(12 * hud_scale), Palette.HUD_TEXT)
+	weapon_name_label = _mk_label(box, "WEAPON", int(17 * hud_scale), Palette.HUD_TEXT)
+	weapon_ammo_label = _mk_label(box, "20 / 60", int(26 * hud_scale), Palette.INTERACTIVE)
+	weapon_mode_label = _mk_label(box, "SEMI", int(15 * hud_scale), Palette.INTERACTIVE)
+	weapon_slots_label = _mk_label(box, "1 2 3 4 5 6", int(14 * hud_scale), Palette.HUD_TEXT)
 	weapon_panel.add_child(box)
 	add_child(weapon_panel)
 

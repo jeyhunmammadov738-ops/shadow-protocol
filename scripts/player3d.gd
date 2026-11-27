@@ -21,8 +21,8 @@ const FRICTION: float = 10.0
 const GRAVITY: float = 980.0
 const STAND_HEIGHT: float = 90.0
 const CROUCH_HEIGHT: float = 58.0
-const CAMERA_STAND_HEIGHT: float = 62.0
-const CAMERA_CROUCH_HEIGHT: float = 42.0
+const CAMERA_STAND_HEIGHT: float = 72.0
+const CAMERA_CROUCH_HEIGHT: float = 50.0
 const TURN_RATE: float = 12.0
 
 ## Analog movement input, magnitude 0..1 (touch joystick or keyboard).
